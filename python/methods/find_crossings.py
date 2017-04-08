@@ -213,13 +213,14 @@ def gen_EA_array(Lshells, dlat_fieldline, center_lon, itime,  L_MARGIN = 0.1, xf
         indices = np.abs(np.subtract.outer(lats_fine, lat_centers)).argmin(0)
         fieldline['ftc_n'] = ftc_n[indices]
         fieldline['ftc_s'] = ftc_n[-1] - fieldline['ftc_n']
-        
+
         # fieldline['ftc_n'] = ftc_n[100*np.arange(0,len(lat_centers) + 1)]
         # fieldline['ftc_s'] = ftc_n[-1] - fieldline['ftc_n']
         # print fieldline['ftc_n']
         # print fieldline['ftc_s']
 
         fieldline['crossings'] = [[] for i in range(len(lat_centers))]   # Initialize an empty list to store crossings in
+        # fieldline['crossings']  = []
         fieldline['stixR'] = np.zeros_like(lat_centers)
         fieldline['stixL'] = np.zeros_like(lat_centers)
         fieldline['stixP'] = np.zeros_like(lat_centers)
@@ -296,7 +297,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
         for lat in [lat_low, lat_hi]:
             lon = center_lon
             filename = os.path.join(ray_dir,'f_%d'%freq,'lon_%d'%lon,'ray_%d_%d_%d.ray'%(freq,lat,lon))
-    #         print filename
+            print filename
             rf = read_rayfile(filename)[0]
             
             filename = os.path.join(ray_dir,'f_%d'%freq,'lon_%d'%lon,'damp_%d_%d_%d.ray'%(freq,lat,lon))
@@ -439,81 +440,74 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                                           ray_data[k3]['damp'][t_ind:t_ind+2]])
                     damping_avg = np.mean(damps_2d)
 
-                    points_2d = np.hstack([np.vstack([ray_data[k0]['pos'][[0,2],t_ind:t_ind+2], np.zeros([1,2])]),
-                                           np.vstack([ray_data[k1]['pos'][[0,2],t_ind:t_ind+2], np.zeros([1,2])]),
-                                           np.vstack([ray_data[k2]['pos'][[0,2],t_ind:t_ind+2], np.ones([1,2])*nf]),
-                                           np.vstack([ray_data[k3]['pos'][[0,2],t_ind:t_ind+2], np.ones([1,2])*nf])])
+                    points_2d = np.hstack([np.vstack([ray_data[k4]['pos'][[0,2],t_ind:t_ind+2], np.zeros([1,2])]),
+                                           np.vstack([ray_data[k5]['pos'][[0,2],t_ind:t_ind+2], np.zeros([1,2])]),
+                                           np.vstack([ray_data[k6]['pos'][[0,2],t_ind:t_ind+2], np.ones([1,2])*nf]),
+                                           np.vstack([ray_data[k7]['pos'][[0,2],t_ind:t_ind+2], np.ones([1,2])*nf])])
 
                     # We really should interpolate these 8 corner points instead of just averaging them.
-                    stixR_pts = np.hstack([ray_data[k0]['stixR'][t_ind:t_ind+2],
-                                           ray_data[k1]['stixR'][t_ind:t_ind+2],
-                                           ray_data[k2]['stixR'][t_ind:t_ind+2],
-                                           ray_data[k3]['stixR'][t_ind:t_ind+2]])
-                    stixL_pts = np.hstack([ray_data[k0]['stixL'][t_ind:t_ind+2],
-                                           ray_data[k1]['stixL'][t_ind:t_ind+2],
-                                           ray_data[k2]['stixL'][t_ind:t_ind+2],
-                                           ray_data[k3]['stixL'][t_ind:t_ind+2]])
-                    stixP_pts = np.hstack([ray_data[k0]['stixP'][t_ind:t_ind+2],
-                                           ray_data[k1]['stixP'][t_ind:t_ind+2],
-                                           ray_data[k2]['stixP'][t_ind:t_ind+2],
-                                           ray_data[k3]['stixP'][t_ind:t_ind+2]])
-                    
-                    mu_pts    = np.hstack([ray_data[k0]['mu'][t_ind:t_ind+2],
-                                           ray_data[k1]['mu'][t_ind:t_ind+2],
-                                           ray_data[k2]['mu'][t_ind:t_ind+2],
-                                           ray_data[k3]['mu'][t_ind:t_ind+2]])
+                    stixR_pts  = np.hstack([ray_data[kk]['stixR'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
+                    stixL_pts  = np.hstack([ray_data[kk]['stixL'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
+                    stixP_pts  = np.hstack([ray_data[kk]['stixP'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
+                    mu_pts  = np.hstack([ray_data[kk]['mu'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
+                    psi_pts = np.hstack([ray_data[kk]['psi'][t_ind:t_ind+2] for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
 
-                    psi_pts   = np.hstack([ray_data[k0]['psi'][t_ind:t_ind+2],
-                                           ray_data[k1]['psi'][t_ind:t_ind+2],
-                                           ray_data[k2]['psi'][t_ind:t_ind+2],
-                                           ray_data[k3]['psi'][t_ind:t_ind+2]])
-
-                    stixR_interp = interpolate.LinearNDInterpolator(points_2d.T, stixR_pts)
-                    stixL_interp = interpolate.LinearNDInterpolator(points_2d.T, stixL_pts)
-                    stixP_interp = interpolate.LinearNDInterpolator(points_2d.T, stixP_pts)
-                    mu_interp    = interpolate.LinearNDInterpolator(points_2d.T, mu_pts)
-                    psi_interp   = interpolate.LinearNDInterpolator(points_2d.T, psi_pts)
+                    stixR_interp = interpolate.LinearNDInterpolator(points_4d.T, stixR_pts)
+                    stixL_interp = interpolate.LinearNDInterpolator(points_4d.T, stixL_pts)
+                    stixP_interp = interpolate.LinearNDInterpolator(points_4d.T, stixP_pts)
+                    mu_interp    = interpolate.LinearNDInterpolator(points_4d.T, mu_pts)
+                    psi_interp   = interpolate.LinearNDInterpolator(points_4d.T, psi_pts)
                     
-                    tri = Delaunay(points_2d.T, qhull_options='QJ')
+                    # tri = Delaunay(points_2d.T, qhull_options='QJ')
+                    tri = Delaunay(points_4d.T, qhull_options='QJ')
                     
                     # Loop through the output fieldlines
                     for fl_ind, fl in enumerate(fieldlines):
                         ix = np.arange(0,len(fl['pos']))
                         ief= np.arange(0, nf)    
                         px, pf = np.meshgrid(ix, ief, indexing='ij')  # in 3d, ij gives xyz, xy gives yxz. dumb.
-                        newpoints = np.hstack([fl['pos'][px.ravel(),:][:,[0,2]], np.atleast_2d(ff[pf.ravel()]).T])
+                        # newpoints = np.hstack([fl['pos'][px.ravel(),:][:,[0,2]], np.atleast_2d(ff[pf.ravel()]).T])
+                        newpoints = np.hstack([fl['pos'][px.ravel(),:], np.atleast_2d(ff[pf.ravel()]).T])
 
                         mask = (tri.find_simplex(newpoints) >= 0)*1.0
+                        # mask = mask.reshape([len(ix), len(ief)])
+
+                        # Entries in newpoints are inside the volume if mask is nonzero
+                        # (Mask gives the index of the triangular element which contains it) 
+                        # for row in newpoints[mask > 0]:
+                        #     print "L:", fl['L'], xf.sm2rllmag(row[:-1], itime)
+                        #     fieldlines[fl_ind]['crossings'].append(xf.sm2rllmag(row[:-1], itime))
+
+
                         mask = mask.reshape([len(ix), len(ief)])
-                        
-                        minds = np.nonzero(mask)       
-                        
+                        minds = np.nonzero(mask)
                         if len(minds[0]) > 0:
                             unscaled_pwr = (damping_avg/voxel_vol)
                             hit_lats = fl['lat'][minds[0]]
                             hit_freqs= fine_freqs[minds[1]]
-                            # print "t = ", t_ind, "L = ", fl['L']
+                        #     # print "t = ", t_ind, "L = ", fl['L']
                             # print hit_lats, hit_freqs
+
+                            # hit latitude, hit frequency (indices)
                             for hl, hf in zip(minds[0], minds[1]):
 
-                                cur_pos = np.hstack([fl['pos'][hl,[0,2]], ff[hf]])
+                                cur_pos = np.hstack([fl['pos'][hl,:], ff[hf]])
                                 psi = psi_interp(cur_pos)
                                 mu = mu_interp(cur_pos)
 
+                                fieldlines[fl_ind]['crossings'][hl].append((t_ind*dt, fine_freqs[hf], unscaled_pwr, psi, mu))
+                                # fl['crossings'].append([fl['L'], fl['lat'][hl], t_ind*dt, fine_freqs[hf]])
+                        #         # Stix parameters are functions of the background medium only,
+                        #         # but we'll average them because we're grabbing them from the
+                        #         # rays at slightly different locations within the cell.
+                        #         # print np.shape(fl['pos'])
 
-                                fl['crossings'][hl].append((t_ind*dt, fine_freqs[hf], unscaled_pwr, psi, mu))
+                                fieldlines[fl_ind]['stixR'][hl] += stixR_interp(cur_pos)
+                                fieldlines[fl_ind]['stixL'][hl] += stixL_interp(cur_pos)
+                                fieldlines[fl_ind]['stixP'][hl] += stixP_interp(cur_pos)
+                                fieldlines[fl_ind]['hit_counts'][hl] += 1
 
-                                # Stix parameters are functions of the background medium only,
-                                # but we'll average them because we're grabbing them from the
-                                # rays at slightly different locations within the cell.
-                                # print np.shape(fl['pos'])
-
-                                fl['stixR'][hl] += stixR_interp(cur_pos)
-                                fl['stixL'][hl] += stixL_interp(cur_pos)
-                                fl['stixP'][hl] += stixP_interp(cur_pos)
-                                fl['hit_counts'][hl] += 1
-
-                                # fl['crossings'].append([h, l, p] for h,l in zip(hit_lats, hit_freqs))
+                        #         # fl['crossings'].append([h, l, p] for h,l in zip(hit_lats, hit_freqs))
 
         # print "Energy: ", np.sum(data_total[:, :, t_ind], axis=0)
 
@@ -530,7 +524,6 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
     out_data['freq_pairs'] = freq_pairs
     
 
-
     return out_data
 
 
@@ -546,12 +539,12 @@ if __name__ == "__main__":
     data = find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/mode6/kp0/',
                             tmax = 10,
                             dt = 0.05,
-                            lat_low = 40,
+                            lat_low = 31,
                             lat_step_size=1,
                             f_low = 200, f_hi = 230,
                             n_sub_freqs = 20,
-                            Llims = [1.2, 8],
-                            L_step = 0.2,
+                            Llims = [1.2,8],
+                            L_step = 0.1,
                             dlat_fieldline = 1
                             )
 

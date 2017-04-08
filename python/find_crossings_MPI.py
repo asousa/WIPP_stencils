@@ -39,7 +39,7 @@ ray_datenum = dt.datetime(2010, 01, 01, 0, 00, 00);
 
 # ray lats:
 ray_lat_spacing = 1
-ray_lats = np.arange(12, 60, ray_lat_spacing)
+ray_lats = np.arange(39, 42, ray_lat_spacing)
 # ray_lats = np.arange(20,25,ray_lat_spacing)
 
 tmax = 20
@@ -54,8 +54,8 @@ flogs = np.linspace(np.log10(f1), np.log10(f2), num_freqs)
 freqs = np.round(pow(10, flogs)/10.)*10
 freq_pairs = zip(freqs[0:], freqs[1:])
 
-
-Llims = [1.2, 8]
+freq_pairs = freq_pairs[0:1]
+Llims = [2.0, 2.5] #[1.2, 8]
 Lstep = 0.1
 out_Lsh = np.arange(Llims[0], Llims[1], Lstep)
 out_lat = np.round(10.0*np.arccos(np.sqrt(1./out_Lsh))*R2D)/10.0
@@ -171,6 +171,7 @@ if (rank < len(chunks)):
                                 center_lon = center_lon,
                                 dlat_fieldline = dlat_fieldline)
 
+        output_directory = os.path.join(output_directory_root, 'kp%d'%Kp)
         python_dump_path = os.path.join(output_directory,'python_data')
 
         outfile = os.path.join(python_dump_path,'crossing_log_lat_%d-%d_f_%d-%d.pklz'%(ray_lat_1, ray_lat_2, f1, f2))
