@@ -136,7 +136,12 @@ def gen_EA_array(Lshells, dlat_fieldline, center_lon, itime,  L_MARGIN = 0.1, xf
     H_IONO_TOP = 1e6
     R_E = 6371e3
     C = 2.997956376932163e8
-
+    Q_EL = 1.602e-19
+    M_EL = 9.1e-31
+    E_EL = 5.105396765648739E5 
+    MU0  = np.pi*4e-7
+    EPS0 = 8.854E-12
+    B0   = 3.12e-5
 
     # ------------------ Set up field lines ----------------------------
     fieldlines = []
@@ -187,6 +192,31 @@ def gen_EA_array(Lshells, dlat_fieldline, center_lon, itime,  L_MARGIN = 0.1, xf
         for row in coords_rllmag.T:
             coords_sm.append(xf.rllmag2sm(row, itime))
         fieldline['pos'] = np.array(coords_sm)
+
+
+        # Calculate loss cone angles:
+        # (dipole field for now)
+
+        slat = np.sin(D2R*lat_centers)
+        clat = np.cos(D2R*lat_centers)
+        slat_term = np.sqrt(1. + 3.*slat*slat)
+
+
+        fieldline['wh'] = (Q_EL*B0/M_EL)/pow(L, 3.)*slat_term/pow(clat,6.)
+        fieldline['dwh_ds'] = 3.*fieldline['wh']/(L*R_E)*slat/slat_term*(1./(slat_term*slat_term) + 2./(clat*clat))
+
+        # Equatorial loss cone
+        epsm = (1./L)*(1. + H_IONO_BOTTOM/R_E)
+        fieldline['alpha_eq'] = np.arcsin(np.sqrt(pow(epsm, 3.)/np.sqrt(1 + 3.*(1. - epsm))  ))
+
+        # Local loss cone
+        fieldline['alpha_lc'] = np.arcsin(np.sqrt( slat_term/pow(clat,6.) )*np.sin(fieldline['alpha_eq']));
+        salph = np.sin(fieldline['alpha_lc'])
+        calph = np.cos(fieldline['alpha_lc'])
+
+        fieldline['ds'] = L*R_E*slat_term*clat*dlat_fieldline*np.pi/180.0
+        fieldline['dv_para_ds'] = -0.5*(salph*salph/(calph*fieldline['wh']))*fieldline['dwh_ds']
+
 
 
         # Calculate flight time constants to ionosphere: (dipole field again)
@@ -261,7 +291,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
    
     Lshells = np.arange(Llims[0], Llims[1], L_step)
     L_MARGIN = L_step/2.0
-    print "doing Lshells ", Lshells
+    # print "doing Lshells ", Lshells
 
 
     # Coordinate transform tools
@@ -363,23 +393,16 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
             ray_data[newkey] = d
 
 
-# ------------- Calculate input power at each step -------------------------------------
-    logging.info("Calculating input power at each cell")
-
-    lat_pairs  = [(lat_low, lat_hi)]
-    lon_pairs  = [(center_lon - lon_spacing/2., center_lon + lon_spacing/2.)]
-
-
-    R2D = 180./np.pi
-    D2R = np.pi/180.
-
-
 # ------------------ Set up field lines ----------------------------
+    logging.info("Setting up EA grid")
     fieldlines = gen_EA_array(Lshells, dlat_fieldline, lon, itime, L_MARGIN, xf = xf)
 
 
 #----------- Step through and fill in the voxels (the main event) ---------------------
     logging.info("Starting interpolation")
+
+    lat_pairs  = [(lat_low, lat_hi)]
+    lon_pairs  = [(center_lon - lon_spacing/2., center_lon + lon_spacing/2.)]
 
     # output space
     nfl = len(fieldlines)
@@ -431,7 +454,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                                            np.vstack([ray_data[k5]['pos'][:,t_ind:t_ind+2],np.zeros([1,2])]),
                                            np.vstack([ray_data[k6]['pos'][:,t_ind:t_ind+2],np.ones([1,2])*nf]),
                                            np.vstack([ray_data[k7]['pos'][:,t_ind:t_ind+2],np.ones([1,2])*nf])])
-                
+                    
                     voxel_vol = voxel_vol_nd(points_4d)*pow(R_E,3.)
 
                     damps_2d = np.hstack([ray_data[k0]['damp'][t_ind:t_ind+2],
@@ -445,18 +468,18 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                                            np.vstack([ray_data[k6]['pos'][[0,2],t_ind:t_ind+2], np.ones([1,2])*nf]),
                                            np.vstack([ray_data[k7]['pos'][[0,2],t_ind:t_ind+2], np.ones([1,2])*nf])])
 
-                    # We really should interpolate these 8 corner points instead of just averaging them.
+                    # We really should interpolate these 16 corner points instead of just averaging them.
                     stixR_pts  = np.hstack([ray_data[kk]['stixR'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
                     stixL_pts  = np.hstack([ray_data[kk]['stixL'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
                     stixP_pts  = np.hstack([ray_data[kk]['stixP'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
                     mu_pts  = np.hstack([ray_data[kk]['mu'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
                     psi_pts = np.hstack([ray_data[kk]['psi'][t_ind:t_ind+2] for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
 
-                    stixR_interp = interpolate.LinearNDInterpolator(points_4d.T, stixR_pts)
-                    stixL_interp = interpolate.LinearNDInterpolator(points_4d.T, stixL_pts)
-                    stixP_interp = interpolate.LinearNDInterpolator(points_4d.T, stixP_pts)
-                    mu_interp    = interpolate.LinearNDInterpolator(points_4d.T, mu_pts)
-                    psi_interp   = interpolate.LinearNDInterpolator(points_4d.T, psi_pts)
+                    stixR_interp = interpolate.NearestNDInterpolator(points_4d.T, stixR_pts)
+                    stixL_interp = interpolate.NearestNDInterpolator(points_4d.T, stixL_pts)
+                    stixP_interp = interpolate.NearestNDInterpolator(points_4d.T, stixP_pts)
+                    mu_interp    = interpolate.NearestNDInterpolator(points_4d.T, mu_pts)
+                    psi_interp   = interpolate.NearestNDInterpolator(points_4d.T, psi_pts)
                     
                     # tri = Delaunay(points_2d.T, qhull_options='QJ')
                     tri = Delaunay(points_4d.T, qhull_options='QJ')
@@ -492,19 +515,20 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                             for hl, hf in zip(minds[0], minds[1]):
 
                                 cur_pos = np.hstack([fl['pos'][hl,:], ff[hf]])
-                                psi = psi_interp(cur_pos)
-                                mu = mu_interp(cur_pos)
+                                psi = psi_interp(cur_pos)[0]
+                                mu = mu_interp(cur_pos)[0]
 
-                                fieldlines[fl_ind]['crossings'][hl].append((t_ind*dt, fine_freqs[hf], unscaled_pwr, psi, mu))
+                                tt = np.round(100.*t_ind*dt)/100.
+                                fieldlines[fl_ind]['crossings'][hl].append((tt, fine_freqs[hf], unscaled_pwr, psi, mu))
                                 # fl['crossings'].append([fl['L'], fl['lat'][hl], t_ind*dt, fine_freqs[hf]])
                         #         # Stix parameters are functions of the background medium only,
                         #         # but we'll average them because we're grabbing them from the
                         #         # rays at slightly different locations within the cell.
                         #         # print np.shape(fl['pos'])
 
-                                fieldlines[fl_ind]['stixR'][hl] += stixR_interp(cur_pos)
-                                fieldlines[fl_ind]['stixL'][hl] += stixL_interp(cur_pos)
-                                fieldlines[fl_ind]['stixP'][hl] += stixP_interp(cur_pos)
+                                fieldlines[fl_ind]['stixR'][hl] += stixR_interp(cur_pos)[0]
+                                fieldlines[fl_ind]['stixL'][hl] += stixL_interp(cur_pos)[0]
+                                fieldlines[fl_ind]['stixP'][hl] += stixP_interp(cur_pos)[0]
                                 fieldlines[fl_ind]['hit_counts'][hl] += 1
 
                         #         # fl['crossings'].append([h, l, p] for h,l in zip(hit_lats, hit_freqs))
@@ -512,6 +536,22 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
         # print "Energy: ", np.sum(data_total[:, :, t_ind], axis=0)
 
     logging.info("finished with interpolation")
+
+
+    # Average the background medium parameters:
+
+    for fl_ind, fl in enumerate(fieldlines):
+        for lat_ind in range(len(fl['crossings'])):
+            n_hits = fl['hit_counts'][lat_ind]
+            if n_hits > 0:
+                # print fl['L'], ":", fl['lat'][lat_ind],": hit count: ", fl['hit_counts'][lat_ind]
+
+                # average stixR, stixL, stixP
+                fl['stixP'][lat_ind] /= n_hits
+                fl['stixR'][lat_ind] /= n_hits
+                fl['stixL'][lat_ind] /= n_hits
+                fl['hit_counts'][lat_ind] = 1
+
 
     out_data = dict()
     out_data['fieldlines'] = fieldlines
@@ -525,6 +565,8 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
     
 
     return out_data
+
+
 
 
 
