@@ -45,11 +45,15 @@ def haversine_np(lon1, lat1, lon2, lat2):
 
 def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/outputs/crossings/nightside/kp0/python_data',
                     power_dir    = '/shared/users/asousa/WIPP/lightning_power_study/outputs/input_powers',
-                    flash_lat=40,
+                    out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/kp0/',
+                    flash_lat=35,
                     mlt = 0,
-                    max_dist=112,
+                    max_dist=1000,
                     I0=-10000,
-                    f_low=200, f_hi=230,
+                    d_lon = 0.25,
+                    num_lons=80,
+                    f_low=200, f_hi=30000,
+                    L_low = 1, L_hi = 10,
                     itime = datetime.datetime(2010,1,1,0,0,0)):
 
     # Parameters
@@ -57,8 +61,9 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
     Emax = 1.0e8
     NUM_E = 512
     SCATTERING_RES_MODES = 5
-    E_BANDWIDTH = 0.3
-    
+    E_BANDWIDTH = 0.2
+    PWR_THRESHOLD = 1e-25
+
     # Constants
     Hz2Rad = 2.*np.pi
     D2R = np.pi/180.
@@ -71,7 +76,9 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
     EPS0 = 8.854E-12
     C    = 2.997956376932163e8
 
-
+    # Set up output directory:
+    if not os.path.exists(out_dir):
+        os.system('mkdir -p %s'%out_dir)
 
 
     d = os.listdir(crossing_dir)
@@ -138,9 +145,13 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
     params['v_tot_arr'] = v_tot_arr
     params['Lshells'] = Lshells
     params['tvec'] = time
+    params['L_low'] = L_low
+    params['L_hi'] = L_hi
+    params['PWR_THRESHOLD'] = PWR_THRESHOLD
 
-
-
+    total_tasks = len(lat_pairs)*len(freq_pairs)
+    print "total tasks: ", total_tasks
+    cur_task = 1
     for lat1, lat2 in lat_pairs:
         center_lat = (lat1 + lat2)/2.
 
@@ -150,10 +161,13 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
             if pwr_key not in pwr_db:
                 print "failed to load input power"
             else:
-
+                print "doing job %d/%d"%(cur_task, total_tasks)
                 # Get input power
-                inp_pwr = pwr_db[pwr_key][lon_offset]        
-
+                # inp_pwr = pwr_db[pwr_key][lon_offset]
+                # Temporary band aid: Crossing detection was done with 1-deg bins,
+                # input power was calculated with 0.25-deg bins.
+                # Also rescale to new I0 value.        
+                inp_pwr = np.sum(pwr_db[pwr_key][0:4])*pow(I0,2.)/pow(-10000., 2)        
                 # Load crossing file
                 crossing_fname = os.path.join(crossing_dir,'crossing_log_lat_%d-%d_f_%d-%d.pklz'%(
                     lat1, lat2, f1, f2))
@@ -163,9 +177,27 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
 
                 crossings = tmp['fieldlines']
 
-                calc_pitch_angle_change(inp_pwr, crossings, da_N, da_S, params)
-
+                tmp_N, tmp_S = calc_pitch_angle_change(inp_pwr, crossings, params)
+                da_N += tmp_N
+                da_S += tmp_S
                 print np.max(da_N), np.max(da_S)
+                cur_task += 1
+
+
+    # And done -- save it.
+    print "Saving..."
+    outfile = os.path.join(out_dir,'scattering_inlat_%d.pklz'%flash_lat)
+    outdict = dict()
+    outdict['da_N'] = da_N
+    outdict['da_S'] = da_S
+    outdict['params'] = params
+
+    with gzip.open(outfile,'wb') as file:
+        pickle.dump(outdict,file)
+
+    print "Done"
+
+
 if __name__ == "__main__":
     calc_scattering()
 

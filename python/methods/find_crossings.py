@@ -266,7 +266,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                     lat_low=40,
                     f_low=200, f_hi=30000,
                     center_lon = 0,
-                    lon_spacing = 1,
+                    lon_spacing = 0.25,
                     itime = datetime.datetime(2010,1,1,0,0,0),
                     lat_step_size = 1,
                     n_sub_freqs=10,
@@ -457,11 +457,14 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                     
                     voxel_vol = voxel_vol_nd(points_4d)*pow(R_E,3.)
 
-                    damps_2d = np.hstack([ray_data[k0]['damp'][t_ind:t_ind+2],
-                                          ray_data[k1]['damp'][t_ind:t_ind+2],
-                                          ray_data[k2]['damp'][t_ind:t_ind+2],
-                                          ray_data[k3]['damp'][t_ind:t_ind+2]])
-                    damping_avg = np.mean(damps_2d)
+                    # damps_2d = np.hstack([ray_data[k0]['damp'][t_ind:t_ind+2],
+                    #                       ray_data[k1]['damp'][t_ind:t_ind+2],
+                    #                       ray_data[k2]['damp'][t_ind:t_ind+2],
+                    #                       ray_data[k3]['damp'][t_ind:t_ind+2]])
+                    # damping_avg = np.mean(damps_2d)
+                    damping_pts  = np.hstack([ray_data[kk]['damp'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
+                    damp_interp   = interpolate.NearestNDInterpolator(points_4d.T, damping_pts)
+
 
                     points_2d = np.hstack([np.vstack([ray_data[k4]['pos'][[0,2],t_ind:t_ind+2], np.zeros([1,2])]),
                                            np.vstack([ray_data[k5]['pos'][[0,2],t_ind:t_ind+2], np.zeros([1,2])]),
@@ -505,7 +508,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                         mask = mask.reshape([len(ix), len(ief)])
                         minds = np.nonzero(mask)
                         if len(minds[0]) > 0:
-                            unscaled_pwr = (damping_avg/voxel_vol)
+                            # unscaled_pwr = (damping_avg/voxel_vol)
                             hit_lats = fl['lat'][minds[0]]
                             hit_freqs= fine_freqs[minds[1]]
                         #     # print "t = ", t_ind, "L = ", fl['L']
@@ -517,9 +520,10 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                                 cur_pos = np.hstack([fl['pos'][hl,:], ff[hf]])
                                 psi = psi_interp(cur_pos)[0]
                                 mu = mu_interp(cur_pos)[0]
+                                damp = damp_interp(cur_pos)[0]
 
                                 tt = np.round(100.*t_ind*dt)/100.
-                                fieldlines[fl_ind]['crossings'][hl].append((tt, fine_freqs[hf], unscaled_pwr, psi, mu))
+                                fieldlines[fl_ind]['crossings'][hl].append((tt, fine_freqs[hf], damp/voxel_vol, psi, mu, damp))
                                 # fl['crossings'].append([fl['L'], fl['lat'][hl], t_ind*dt, fine_freqs[hf]])
                         #         # Stix parameters are functions of the background medium only,
                         #         # but we'll average them because we're grabbing them from the

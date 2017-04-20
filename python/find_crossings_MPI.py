@@ -39,11 +39,11 @@ ray_datenum = dt.datetime(2010, 01, 01, 0, 00, 00);
 
 # ray lats:
 ray_lat_spacing = 1
-ray_lats = np.arange(35, 46, ray_lat_spacing)
+ray_lats = np.arange(12, 61, ray_lat_spacing)
 # ray_lats = np.arange(20,25,ray_lat_spacing)
 
 tmax = 20
-dt = 0.05
+dt = 0.02
 
 
 ray_lat_pairs = zip(ray_lats[0:], ray_lats[1:])
@@ -55,15 +55,15 @@ freqs = np.round(pow(10, flogs)/10.)*10
 freq_pairs = zip(freqs[0:], freqs[1:])
 
 # freq_pairs = freq_pairs[0:1]
-Llims = [1.2, 8]
-Lstep = 0.1
+Llims = [2,4]
+Lstep = 0.5
 out_Lsh = np.arange(Llims[0], Llims[1], Lstep)
 out_lat = np.round(10.0*np.arccos(np.sqrt(1./out_Lsh))*R2D)/10.0
 
 # out_lon = [0]
 
 num_offset_lons = 0 # on each side of center
-offset_lon_spacing = 1
+offset_lon_spacing = 0.25 #1
 
 dlat_fieldline = 1.     # degree spacing between EA segments
 model_number = 0        # b-field model (0 = dipole, 1 = IGRF)
@@ -80,7 +80,7 @@ nightday = 'nightside'
 
 
 ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
-output_directory_root    = os.path.join(project_root, "outputs", "crossings",nightday)
+output_directory_root    = os.path.join(project_root, "outputs", "crossings_dev", nightday)
 
 # ----------------------------------------------------------
 
