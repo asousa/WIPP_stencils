@@ -59,6 +59,7 @@ void calc_scattering(double* crossings, size_t rows, double inp_pwr, EA_args EA,
     double E_EXP_BOT = params.E_EXP_BOT;
     double TIME_STEP = params.dt;
     double E_BANDWIDTH = params.E_BANDWIDTH;
+    double SCATTERING_RES_MODES = params.SCATTERING_RES_MODES;
 
     // cout << " C (params) ----------" <<endl;
     // cout << "NUM_E: " << NUM_E << endl;
@@ -77,7 +78,7 @@ void calc_scattering(double* crossings, size_t rows, double inp_pwr, EA_args EA,
 
     // cout << "V array: ";
     // for (int i=0; i<NUM_E; ++i) {
-    //     cout << (*v_tot_arr_p)[i] << " ";
+    //     cout << (*v_tot_arr_p)[i]/C << " ";
     // }
     // cout << endl;
 

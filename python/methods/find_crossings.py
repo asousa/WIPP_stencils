@@ -424,7 +424,8 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
             # print "doing freqs between ", f1, "and", f2
 
             # Loop over adjacent sets:
-            ff = np.arange(0, n_sub_freqs, 1)
+            ff = np.arange(0, (f2 - f1), 1)
+            # ff = np.arange(0, n_sub_freqs, 1)
             nf = len(ff)
 
             fine_freqs = f1 + (f2 - f1)*ff/nf

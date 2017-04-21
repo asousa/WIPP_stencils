@@ -24,7 +24,8 @@ DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 sources = \
 	ctypes_trial.cpp \
 	calc_scattering.cpp \
-	fresnel.cpp
+	fresnel.cpp \
+	flux_methods.cpp
 
 sources_full = $(patsubst %,$(SRC_DIR)/%,$(sources))
 _OBJ = ${sources:.cpp=.o}	

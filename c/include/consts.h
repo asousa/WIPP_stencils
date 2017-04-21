@@ -70,9 +70,9 @@
 
 // #define     TIME_STEP   (1.0*((1.0*TIME_MAX)/NUM_TIMES))     // Seconds
 
-#define     SCATTERING_RES_MODES   10       
+// #define     SCATTERING_RES_MODES   10       
 
-#define     WAVE_PWR_THRESH   0
+// #define     WAVE_PWR_THRESH   0
 #define     DAMPING_THRESH    1e-3   
 
 #define     DEBUG       true
