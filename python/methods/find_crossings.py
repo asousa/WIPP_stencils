@@ -273,7 +273,8 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                     Llims = [1.2, 8],
                     L_step = 0.2,
                     dlat_fieldline=1,
-                    frame_directory=None):
+                    frame_directory=None,
+                    DAMP_THRESHOLD = 1e-3):
 
     # Constants
     Hz2Rad = 2.*np.pi
@@ -283,6 +284,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
     H_IONO_TOP = 1e6
     R_E = 6371e3
     C = 2.997956376932163e8
+    # DAMP_THRESHOLD = 1e-3  # Threshold below which we don't log a crossing
 
 
 
@@ -327,7 +329,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
         for lat in [lat_low, lat_hi]:
             lon = center_lon
             filename = os.path.join(ray_dir,'f_%d'%freq,'lon_%d'%lon,'ray_%d_%d_%d.ray'%(freq,lat,lon))
-            print filename
+            # print filename
             rf = read_rayfile(filename)[0]
             
             filename = os.path.join(ray_dir,'f_%d'%freq,'lon_%d'%lon,'damp_%d_%d_%d.ray'%(freq,lat,lon))
@@ -522,25 +524,22 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                                 mu = mu_interp(cur_pos)[0]
                                 damp = damp_interp(cur_pos)[0]
 
-                                tt = np.round(100.*t_ind*dt)/100.
-                                fieldlines[fl_ind]['crossings'][hl].append((tt, fine_freqs[hf], damp/voxel_vol, psi, mu, damp))
-                                # fl['crossings'].append([fl['L'], fl['lat'][hl], t_ind*dt, fine_freqs[hf]])
-                        #         # Stix parameters are functions of the background medium only,
-                        #         # but we'll average them because we're grabbing them from the
-                        #         # rays at slightly different locations within the cell.
-                        #         # print np.shape(fl['pos'])
+                                if (damp > DAMP_THRESHOLD):
+                                    tt = np.round(100.*t_ind*dt)/100.
+                                    fieldlines[fl_ind]['crossings'][hl].append((tt, fine_freqs[hf], damp/voxel_vol, psi, mu, damp))
+                                    # fl['crossings'].append([fl['L'], fl['lat'][hl], t_ind*dt, fine_freqs[hf]])
+                            #         # Stix parameters are functions of the background medium only,
+                            #         # but we'll average them because we're grabbing them from the
+                            #         # rays at slightly different locations within the cell.
+                            #         # print np.shape(fl['pos'])
 
-                                fieldlines[fl_ind]['stixR'][hl] += stixR_interp(cur_pos)[0]
-                                fieldlines[fl_ind]['stixL'][hl] += stixL_interp(cur_pos)[0]
-                                fieldlines[fl_ind]['stixP'][hl] += stixP_interp(cur_pos)[0]
-                                fieldlines[fl_ind]['hit_counts'][hl] += 1
+                                    fieldlines[fl_ind]['stixR'][hl] += stixR_interp(cur_pos)[0]
+                                    fieldlines[fl_ind]['stixL'][hl] += stixL_interp(cur_pos)[0]
+                                    fieldlines[fl_ind]['stixP'][hl] += stixP_interp(cur_pos)[0]
+                                    fieldlines[fl_ind]['hit_counts'][hl] += 1
 
-                        #         # fl['crossings'].append([h, l, p] for h,l in zip(hit_lats, hit_freqs))
-
-        # print "Energy: ", np.sum(data_total[:, :, t_ind], axis=0)
-
+    # logging.info("finished with interpolation")
     logging.info("finished with interpolation")
-
 
     # Average the background medium parameters:
 

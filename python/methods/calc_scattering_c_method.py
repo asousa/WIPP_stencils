@@ -63,7 +63,8 @@ class scattering_params(ct.Structure):
                 ('DE_EXP',ct.c_double),
                 ('E_EXP_BOT', ct.c_double),
                 ('E_EXP_TOP', ct.c_double),
-                ('v_tot_arr', ct.POINTER(ct.c_double))]
+                ('v_tot_arr', ct.POINTER(ct.c_double)),
+                ('E_BANDWIDTH', ct.c_double)]
 
 # class EA_args(ct.Structure):
 #     _fields_ = [('num_lats', ct.c_int)]
@@ -95,11 +96,11 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
                     out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/kp0/',
                     flash_lat=35,
                     mlt = 0,
-                    max_dist=500,
+                    max_dist=200,
                     I0=-10000,
                     d_lon = 0.25,
                     num_lons=80,
-                    f_low=200, f_hi=500,
+                    f_low=500, f_hi=2000,
                     L_low = 1, L_hi = 10,
                     itime = datetime.datetime(2010,1,1,0,0,0)):
 
@@ -144,7 +145,6 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
                                      ct.Structure,
                                      ndpointer(ct.c_double, flags="C_CONTIGUOUS"),
                                      ndpointer(ct.c_double, flags="C_CONTIGUOUS")]
-    print calc_scattering_c.argtypes
 
 
     # Set up output directory:
@@ -228,7 +228,7 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
     params.E_EXP_BOT = np.log10(Emin)
     params.E_EXP_TOP = np.log10(Emax)
     params.v_tot_arr = np.ctypeslib.as_ctypes(v_tot_arr)
-
+    params.E_BANDWIDTH = 1
 
     total_tasks = len(lat_pairs)*len(freq_pairs)
     print "total tasks: ", total_tasks
@@ -259,7 +259,8 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
                 
                 for fl_ind, fl in enumerate(tmp['fieldlines']):
                     print "L: ", fl['L']
-                    hitlist = np.where(fl['stixP'] != 0)[0]  # indexes of lats worth doing
+                    print fl['hit_counts']
+                    hitlist = np.where(fl['hit_counts'] > 0)[0]  # indexes of lats worth doing
                     for hi, h in enumerate(hitlist):
                         print "   lat:", fl['lat'][h]
                         # EA.num_lats   = len(hitlist)
@@ -302,11 +303,15 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
                         # print " -----------------------------"  
                         # print "input power: ", inp_pwr
 
-
+                        tmpN = np.zeros([len(E_tot_arr), len(time) + 1])
+                        tmpS = np.zeros([len(E_tot_arr), len(time) + 1])
                         calc_scattering_c(crossing_list, np.shape(crossing_list)[0],
                                         ct.c_double(inp_pwr),
                                         EA, params,
-                                        da_N[fl_ind, :,:], da_S[fl_ind, :,:])
+                                        tmpN, tmpS)
+
+                        da_N[fl_ind,:,:] += tmpN
+                        da_S[fl_ind,:,:] += tmpS
 
                     # crossing_list = np.vstack([[xi, fl['crossings'][x]] for xi, x in enumerate(hitlist)])
                     # print np.shape(crossing_list)
@@ -324,16 +329,29 @@ def calc_scattering(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/output
                 cur_task += 1
 
 
-    # # And done -- save it.
-    # print "Saving..."
+    # And done -- save it.
+    # (this version for Python, since pickle is a shit about ctypes structures)
+    pyparams = dict()
+    pyparams['Emin'] = Emin
+    pyparams['Emax'] = Emax
+    pyparams['NUM_E'] = NUM_E
+    pyparams['E_tot_arr'] = E_tot_arr
+    pyparams['v_tot_arr'] = v_tot_arr
+    pyparams['Lshells'] = Lshells
+    pyparams['tvec'] = time
+    pyparams['L_low'] = L_low
+    pyparams['L_hi'] = L_hi
+    
+    print "Saving..."
     # outfile = os.path.join(out_dir,'scattering_inlat_%d.pklz'%flash_lat)
-    # outdict = dict()
-    # outdict['da_N'] = da_N
-    # outdict['da_S'] = da_S
-    # outdict['params'] = params
+    outfile = os.path.join(out_dir, 'derpyderpy.pklz')
+    outdict = dict()
+    outdict['da_N'] = da_N
+    outdict['da_S'] = da_S
+    outdict['params'] = pyparams
 
-    # with gzip.open(outfile,'wb') as file:
-    #     pickle.dump(outdict,file)
+    with gzip.open(outfile,'wb') as file:
+        pickle.dump(outdict,file)
 
     print "Done"
 

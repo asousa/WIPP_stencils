@@ -38,6 +38,7 @@ struct scattering_params{
     double E_EXP_BOT;
     double E_EXP_TOP;
     double * v_tot_arr;
+    double E_BANDWIDTH;
 };
 
 void Fresnel(double x0, double *FS, double *FC);

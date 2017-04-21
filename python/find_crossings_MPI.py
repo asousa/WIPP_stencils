@@ -70,17 +70,22 @@ model_number = 0        # b-field model (0 = dipole, 1 = IGRF)
 num_freq_steps = 20     # number of interpolating steps between 
                         # each guide frequency.
 crossing_method = 1
+
+damp_threshold = 0.1 # Value below which we ignore crossings
+
 # vec_ind = 0     # Which set of default params to use for the gcpm model
 # Mean parameter vals for set Kp:
-Kpvec = [0]
+Kpvec = ['ngo_v2']
 
 nightday = 'nightside'
 
 
 
 
-ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
-output_directory_root    = os.path.join(project_root, "outputs", "crossings_dev", nightday)
+# ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
+ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/'%nightday
+
+output_directory_root    = os.path.join(project_root, "outputs", "crossings_ngo", nightday)
 
 # ----------------------------------------------------------
 
@@ -98,7 +103,10 @@ nProcs = 1.0*comm.Get_size()
 # Set up output tree
 if rank==0:
     for Kp in Kpvec:
-        output_directory = os.path.join(output_directory_root, 'kp%d'%Kp)
+        if 'ngo' in Kp:
+            output_directory = os.path.join(output_directory_root, Kp)    
+        else:
+            output_directory = os.path.join(output_directory_root, 'kp%d'%Kp)
         if not os.path.exists(output_directory):
             # os.mkdir(output_directory)
             os.system('mkdir -p %s'%output_directory)
@@ -146,14 +154,17 @@ nSteps = np.ceil(nTasks/nProcs).astype(int)
 if (rank < len(chunks)):
     print "Process %d on host %s, doing %g jobs"%(rank, host, len(chunks[rank]))
 
-    for job in chunks[rank]:
+    for job_ind, job in enumerate(chunks[rank]):
         ray_lat_1 = job[0][0]
         ray_lat_2 = job[0][1]
         f1 = job[1][0]
         f2 = job[1][1]
         Kp = job[2]
 
-        ray_dir = os.path.join(ray_input_directory_root,'kp%d'%Kp)
+        if 'ngo' in Kp:
+            ray_dir = os.path.join(ray_input_directory_root, Kp)
+        else:
+            ray_dir = os.path.join(ray_input_directory_root,'kp%d'%Kp)
 
         if nightday == "nightside":
             center_lon = 0.
@@ -169,15 +180,23 @@ if (rank < len(chunks)):
                                 Llims = Llims,
                                 L_step = Lstep,
                                 center_lon = center_lon,
-                                dlat_fieldline = dlat_fieldline)
+                                dlat_fieldline = dlat_fieldline,
+                                DAMP_THRESHOLD = damp_threshold)
 
-        output_directory = os.path.join(output_directory_root, 'kp%d'%Kp)
+        if 'ngo' in Kp:
+            output_directory = os.path.join(output_directory_root, Kp)    
+        else:
+            output_directory = os.path.join(output_directory_root, 'kp%d'%Kp)
+        # output_directory = os.path.join(output_directory_root, 'kp%d'%Kp)
         python_dump_path = os.path.join(output_directory,'python_data')
 
         outfile = os.path.join(python_dump_path,'crossing_log_lat_%d-%d_f_%d-%d.pklz'%(ray_lat_1, ray_lat_2, f1, f2))
-
         with gzip.open(outfile,'wb') as file:
             pickle.dump(data, file)
+        
+        print "Process %d on host %s, finished %d/%d"%(rank, host, job_ind+1, len(chunks[rank]))
+
+    print "Process %d on host %s complete"%(rank, host)
 
 
 

@@ -1,5 +1,12 @@
 #include <WIPP_stencil.h>
 
+// Calculates scattering (d_alpha) for a single EA segment.
+// Inputs: -- Crossings: (rows x 6) crossing entries
+// rows:   -- number of crossings
+// inp_pwr -- Initial energy for this set of guide rays
+// EA      -- A structure of all the EA-specific parameters
+// 
+
 void calc_scattering(double* crossings, size_t rows, double inp_pwr, EA_args EA,
                     scattering_params params, double* da_N, double* da_S) {
 
@@ -51,6 +58,7 @@ void calc_scattering(double* crossings, size_t rows, double inp_pwr, EA_args EA,
     double DE_EXP = params.DE_EXP;
     double E_EXP_BOT = params.E_EXP_BOT;
     double TIME_STEP = params.dt;
+    double E_BANDWIDTH = params.E_BANDWIDTH;
 
     // cout << " C (params) ----------" <<endl;
     // cout << "NUM_E: " << NUM_E << endl;
@@ -121,220 +129,213 @@ void calc_scattering(double* crossings, size_t rows, double inp_pwr, EA_args EA,
         mu      = (*cross_ptr)[i][4];
         damping = (*cross_ptr)[i][5];
 
-        // cout << "t: " << t << " f: " << f << " pwr: " << pwr << " mu: " << mu << " psi " << psi << " damp " << damping << endl;
+        if (damping > DAMPING_THRESH) {
 
-        spsi = sin(psi);
-        cpsi = cos(psi);
-        spsi_sq = pow(spsi,2);
-        cpsi_sq = pow(cpsi,2);
-        n_x = mu*fabs(spsi);
-        n_z = mu*cpsi;
-        mu_sq = mu*mu;
-        w = 2.0*PI*f;
-        k = w*mu/C;
-        kx = w*n_x/C;
-        kz = w*n_z/C;
-        Y = wh / w ;
+            // cout << "t: " << t << " f: " << f << " pwr: " << pwr << " mu: " << mu << " psi " << psi << " damp " << damping << endl;
 
-        // Stix parameters
-        stixS = ( stixR + stixL ) /2.0;
-        stixD = ( stixR - stixL ) /2.0;
-        stixA = stixS + (stixP-stixS)*cpsi_sq;
-        stixB = stixP*stixS+stixR*stixL+(stixP*stixS-stixR*stixL)*cpsi_sq;
-        stixX = stixP/(stixP- mu_sq*spsi_sq);
+            spsi = sin(psi);
+            cpsi = cos(psi);
+            spsi_sq = pow(spsi,2);
+            cpsi_sq = pow(cpsi,2);
+            n_x = mu*fabs(spsi);
+            n_z = mu*cpsi;
+            mu_sq = mu*mu;
+            w = 2.0*PI*f;
+            k = w*mu/C;
+            kx = w*n_x/C;
+            kz = w*n_z/C;
+            Y = wh / w ;
 
-        // Polarization ratios
-        rho1=((mu_sq-stixS)*mu_sq*spsi*cpsi)/(stixD*(mu_sq*spsi_sq-stixP));
-        rho2 = (mu_sq - stixS) / stixD ;
+            // Stix parameters
+            stixS = ( stixR + stixL ) /2.0;
+            stixD = ( stixR - stixL ) /2.0;
+            stixA = stixS + (stixP-stixS)*cpsi_sq;
+            stixB = stixP*stixS+stixR*stixL+(stixP*stixS-stixR*stixL)*cpsi_sq;
+            stixX = stixP/(stixP- mu_sq*spsi_sq);
 
-        // (bortnik 2.28)
-        Byw_sq =  2.0*MU0/C*pwr*stixX*stixX*rho2*rho2*mu*fabs(cpsi)/
-           sqrt(  pow((tan(psi)-rho1*rho2*stixX),2) + 
-           pow( (1+rho2*rho2*stixX), 2 ) );
+            // Polarization ratios
+            rho1=((mu_sq-stixS)*mu_sq*spsi*cpsi)/(stixD*(mu_sq*spsi_sq-stixP));
+            rho2 = (mu_sq - stixS) / stixD ;
 
-        // cout << "Byw_sq: " << Byw_sq << endl;
+            // (bortnik 2.28)
+            Byw_sq =  2.0*MU0/C*pwr*stixX*stixX*rho2*rho2*mu*fabs(cpsi)/
+               sqrt(  pow((tan(psi)-rho1*rho2*stixX),2) + 
+               pow( (1+rho2*rho2*stixX), 2 ) );
 
-        // RMS wave components
-        Byw = sqrt(Byw_sq);
-        Exw = fabs(C*Byw * (stixP - n_x*n_x)/(stixP*n_z)); 
-        Eyw = fabs(Exw * stixD/(stixS-mu_sq));
-        Ezw = fabs(Exw *n_x*n_z / (n_x*n_x - stixP));
-        Bxw = fabs(Exw *stixD*n_z /C/ (stixS - mu_sq));
-        Bzw = fabs((Exw *stixD *n_x) /(C*(stixX - mu_sq)));
+            // cout << "Byw_sq: " << Byw_sq << endl;
 
-        // Oblique integration quantities
-        R1 = (Exw + Eyw)/(Bxw+Byw);
-        R2 = (Exw - Eyw)/(Bxw-Byw);
-        w1 = Q_EL/(2*M_EL)*(Bxw+Byw);
-        w2 = Q_EL/(2*M_EL)*(Bxw-Byw);
-        alpha1 = w2/w1;
+            // RMS wave components
+            Byw = sqrt(Byw_sq);
+            Exw = fabs(C*Byw * (stixP - n_x*n_x)/(stixP*n_z)); 
+            Eyw = fabs(Exw * stixD/(stixS-mu_sq));
+            Ezw = fabs(Exw *n_x*n_z / (n_x*n_x - stixP));
+            Bxw = fabs(Exw *stixD*n_z /C/ (stixS - mu_sq));
+            Bzw = fabs((Exw *stixD *n_x) /(C*(stixX - mu_sq)));
 
-        // cout << " Byw " << Byw
-        // << " Exw " << Exw
-        // << " Eyw " << Eyw
-        // << " Ezw " << Ezw
-        // << " Bxw " << Bxw
-        // << " Bzw " << Bzw << endl; 
-        //begin MRES loop here
-        for(mres=-SCATTERING_RES_MODES; mres <= SCATTERING_RES_MODES; mres++) {
-            // get parallel resonance velocity
-            t1 = w*w*kz*kz;
-            t2 = pow((mres*wh),2)-w*w;
-            t3 = kz*kz + pow((mres*wh),2)/(pow(C*cos(alpha_lc),2));
+            // Oblique integration quantities
+            R1 = (Exw + Eyw)/(Bxw+Byw);
+            R2 = (Exw - Eyw)/(Bxw-Byw);
+            w1 = Q_EL/(2*M_EL)*(Bxw+Byw);
+            w2 = Q_EL/(2*M_EL)*(Bxw-Byw);
+            alpha1 = w2/w1;
 
-            if(mres==0) {
-                direction = -kz/fabs(kz);
-            } else {
-                direction = kz/fabs(kz) * mres/fabs(mres) ;
-            }
+            // cout << " Byw " << Byw
+            // << " Exw " << Exw
+            // << " Eyw " << Eyw
+            // << " Ezw " << Ezw
+            // << " Bxw " << Bxw
+            // << " Bzw " << Bzw << endl; 
+            //begin MRES loop here
+            for(mres=-SCATTERING_RES_MODES; mres <= SCATTERING_RES_MODES; mres++) {
+                // get parallel resonance velocity
+                t1 = w*w*kz*kz;
+                t2 = pow((mres*wh),2)-w*w;
+                t3 = kz*kz + pow((mres*wh),2)/(pow(C*cos(alpha_lc),2));
 
-            v_para_res = ( direction*sqrt(t1 + t2*t3) - w*kz ) / t3;
-            v_tot_res = v_para_res / cos(alpha_lc); 
-            E_res = E_EL*( 1.0/sqrt( 1.0-(v_tot_res*v_tot_res/(C*C)) ) -1.0 );
+                if(mres==0) {
+                    direction = -kz/fabs(kz);
+                } else {
+                    direction = kz/fabs(kz) * mres/fabs(mres) ;
+                }
 
-            // if(DEBUG) {printf("t1: %g t2: %g t3: %g v_para_res: %g v_tot_res: %g E_res: %g\n",
-            //                    t1,    t2,    t3,    v_para_res,    v_tot_res,    E_res);}
-            
-            // get starting and ending indices, +-20% energy band
-            e_starti = floor((log10(E_res) - E_EXP_BOT - 0.3)/(DE_EXP));
-            e_endi   =  ceil((log10(E_res) - E_EXP_BOT + 0.3)/(DE_EXP));
+                v_para_res = ( direction*sqrt(t1 + t2*t3) - w*kz ) / t3;
+                v_tot_res = v_para_res / cos(alpha_lc); 
+                E_res = E_EL*( 1.0/sqrt( 1.0-(v_tot_res*v_tot_res/(C*C)) ) -1.0 );
 
-            if(e_endi>NUM_E) e_endi=NUM_E;
-            if(e_starti>NUM_E) e_starti=NUM_E;
-            if(e_endi<0) e_endi=0;
-            if(e_starti<0) e_starti=0;
-            
+                // if(DEBUG) {printf("t1: %g t2: %g t3: %g v_para_res: %g v_tot_res: %g E_res: %g\n",
+                //                    t1,    t2,    t3,    v_para_res,    v_tot_res,    E_res);}
+                
+                // get starting and ending indices, +-20% energy band
+                e_starti = floor((log10(E_res) - E_EXP_BOT - E_BANDWIDTH)/(DE_EXP));
+                e_endi   =  ceil((log10(E_res) - E_EXP_BOT + E_BANDWIDTH)/(DE_EXP));
 
-            // begin V_TOT loop here
-            for(e_toti=e_starti; e_toti < e_endi; e_toti++) {
+                if(e_endi>NUM_E) e_endi=NUM_E;
+                if(e_starti>NUM_E) e_starti=NUM_E;
+                if(e_endi<0) e_endi=0;
+                if(e_starti<0) e_starti=0;
+                
 
-                v_tot = direction * ( (*v_tot_arr_p)[e_toti]);
-                v_para = v_tot * calph;
-                v_perp = fabs(v_tot * salph);
-                // cout << "v_perp: " << v_perp << endl;
-                gamma = 1.0 / sqrt(1 - pow((v_tot/C),2)); 
-                alpha2 = Q_EL*Ezw /(M_EL*gamma*w1*v_perp);
-                beta = kx*v_perp / wh ;
-                // cout << "w1: " << w1 << " gamma: " << gamma << " beta: " << beta << " alpha1: " << alpha1 << " alpha2 " << alpha2 <<endl;
+                // begin V_TOT loop here
+                for(e_toti=e_starti; e_toti < e_endi; e_toti++) {
 
-                wtau_sq = pow((-1),(mres-1)) * w1/gamma * 
-                ( jn( (mres-1), beta ) - 
-                  alpha1*jn( (mres+1) , beta ) +
-                  gamma*alpha2*jn( mres , beta ) ); 
-                T1 = -wtau_sq*(1+ ( (calph*calph) / (mres*Y-1) ) );
-                // cout << "wtau_sq: " << wtau_sq << " calph: " << calph << " mres: " << mres << " Y: " << Y << endl;
-                // Now - start analytical evaluation!!!
-              
-                if( fabs(lat)< 1e-3) {
-                    // Near the equator we can use a simplified expression:
-                    eta_dot = mres*wh/gamma - w - kz*v_para;
+                    v_tot = direction * ( (*v_tot_arr_p)[e_toti]);
+                    v_para = v_tot * calph;
+                    v_perp = fabs(v_tot * salph);
+                    // cout << "v_perp: " << v_perp << endl;
+                    gamma = 1.0 / sqrt(1 - pow((v_tot/C),2)); 
+                    alpha2 = Q_EL*Ezw /(M_EL*gamma*w1*v_perp);
+                    beta = kx*v_perp / wh ;
+                    // cout << "w1: " << w1 << " gamma: " << gamma << " beta: " << beta << " alpha1: " << alpha1 << " alpha2 " << alpha2 <<endl;
 
-                    if(fabs(eta_dot)<10) {
-                        // Bortnik A.31
-                        dalpha_eq = fabs(T1/v_para)*ds/sqrt(2); 
-                    } else {
-                        // Bortnik A.30
-                        dalpha_eq = fabs(T1/eta_dot)*sqrt(1-cos(ds*eta_dot/v_para)); 
-                    }
+                    wtau_sq = pow((-1),(mres-1)) * w1/gamma * 
+                    ( jn( (mres-1), beta ) - 
+                      alpha1*jn( (mres+1) , beta ) +
+                      gamma*alpha2*jn( mres , beta ) ); 
+                    T1 = -wtau_sq*(1+ ( (calph*calph) / (mres*Y-1) ) );
+                    // cout << "wtau_sq: " << wtau_sq << " calph: " << calph << " mres: " << mres << " Y: " << Y << endl;
+                    // Now - start analytical evaluation!!!
+                  
+                    if( fabs(lat)< 1e-3) {
+                        // Near the equator we can use a simplified expression:
+                        eta_dot = mres*wh/gamma - w - kz*v_para;
 
-                } else {  
-                    
-                    v_para_star = v_para - dv_para_ds*ds/2.0;
-                    v_para_star_sq = v_para_star * v_para_star;
+                        if(fabs(eta_dot)<10) {
+                            // Bortnik A.31
+                            dalpha_eq = fabs(T1/v_para)*ds/sqrt(2); 
+                        } else {
+                            // Bortnik A.30
+                            dalpha_eq = fabs(T1/eta_dot)*sqrt(1-cos(ds*eta_dot/v_para)); 
+                        }
 
-                    // Bortnik A.18 -- part A1
-                    AA = (mres/(2.0*v_para_star*gamma))*dwh_ds* 
-                         (1 + ds/(2.0*v_para_star)*dv_para_ds) - 
-                          mres/(2.0*v_para_star_sq*gamma)*wh*dv_para_ds + 
-                          w/(2.0*v_para_star_sq)*dv_para_ds ;
-
-                    // // Bortnik A.18 -- part A0   -- THIS DOES NOT MATCH THE THESIS
-                    // BB = mres/(gamma*v_para_star)*wh - 
-                    //      mres/(gamma*v_para_star)*dwh_ds*(ds/2.0) -
-                    //      w/v_para_star - kz;
-
-                    // Bortnik A.18 -- part A0
-                    BB =   mres*wh/(gamma*v_para_star)
-                         - mres/(gamma*v_para_star)*dwh_ds*(ds/2.0) * (w/v_para_star)*kz;
-
-
-                    // Evaluate Bortnik A.26 -- integration performed thru Fresnel functions
-                    Farg = (BB + 2*AA*ds) / sqrt(2*PI*fabs(AA));
-                    Farg0 = BB / sqrt(2*PI*fabs(AA));  
-                    
-                    Fresnel(Farg, &Fs, &Fc);
-                    Fresnel(Farg0, &Fs0, &Fc0);
-                    
-                    dFs_sq = pow((Fs - Fs0),2);
-                    dFc_sq = pow((Fc - Fc0),2);
-                    
-                    // cout << "AA " << AA << " T1 " << T1 << " v_para " << v_para << " Dfs_sq " << dFs_sq << " dFc_sq " << dFc_sq << endl; 
-                    dalpha = sqrt(PI/4/fabs(AA))*fabs(T1/v_para)*sqrt(dFs_sq+dFc_sq);
-                    
-                    // Map the local change in pitch angle to the equivalent
-                    // pitch angle at the equator:  (still using dipole model here)
-                    // alpha_eq_p = asin( sin(alpha_lc+dalpha)*pow(clat,3) / 
-                    //            sqrt(slat_term) );
-                    // alpha_eq_p = asin( sin(alpha_lc + dalpha)*EA.Bo_ratio);
-                    alpha_eq_p = asin( sin(alpha_lc+dalpha)*pow(clat,3) / sqrt(slat_term) );
-                    // cout << "alpha_eq_p: " << alpha_eq_p << " alpha_eq: " << alpha_eq << endl;
-
-                    dalpha_eq = alpha_eq_p - alpha_eq;
-
-                    
-                    // if (isnan(fabs(dalpha_eq))) {
-                    //     cout << "NaN: ";
-
-                    //     cout << "direction: " << direction << " v_to_arr[e_toti]: " << v_tot_arr[e_toti] << " "; 
-                    //     printf("w1: %g gamma: %g alpha1: %g beta: %g alpha2: %g v_perp: %g v_tot: %g salph: %g e_toti: %g\n",
-                    //             w1,    gamma,    alpha1,    beta,    alpha2,    v_perp,    v_tot,    salph,    e_toti);
-
-
-                    //     // printf("wtau_sq: %g calph: %g mres: %g Y: %g\n",
-                    //     //         wtau_sq,    calph,    mres,    Y);
-                    //     // printf("AA: %g T1: %g v_para: %g dFs_sq: %g dFc_sq: %g\n",
-                    //     //         AA,     T1,    v_para,   dFs_sq,    dFc_sq);
-                    //     // // printf("alpha_eq_p: %g alpha_lc: %g dalpha: %g Bo_ratio: %g\n",
-                    //     //         alpha_eq_p,    alpha_lc,    dalpha,  EA.Bo_ratio);
-                    //     // printf("flt_time: %g dalpha_eq: %g alpha_eq_p: %g alpha_eq: %g\n",
-                    //     //         flt_time,    dalpha_eq,    alpha_eq_p,    alpha_eq);
+                    } else {  
                         
-                    //     break;
-                    // }
-                }
+                        v_para_star = v_para - dv_para_ds*ds/2.0;
+                        v_para_star_sq = v_para_star * v_para_star;
 
-                if(direction>0) {
-                    flt_time = fabs(flt_const_N/v_para);
-                } else {
-                    flt_time = fabs(flt_const_S/v_para);
-                }
-                 
-                // if (DEBUG) {printf("flt_time: %g dalpha_eq: %g alpha_eq_p: %g alpha_eq: %g\n",
-                //                     flt_time,    dalpha_eq,    alpha_eq_p,    alpha_eq);}
+                        // Bortnik A.18 -- part A1
+                        AA = (mres/(2.0*v_para_star*gamma))*dwh_ds* 
+                             (1 + ds/(2.0*v_para_star)*dv_para_ds) - 
+                              mres/(2.0*v_para_star_sq*gamma)*wh*dv_para_ds + 
+                              w/(2.0*v_para_star_sq)*dv_para_ds ;
 
-                // Get time index into output array
-                timei = round((t + flt_time)/TIME_STEP);
+                        // // Bortnik A.18 -- part A0   -- THIS DOES NOT MATCH THE THESIS
+                        // BB = mres/(gamma*v_para_star)*wh - 
+                        //      mres/(gamma*v_para_star)*dwh_ds*(ds/2.0) -
+                        //      w/v_para_star - kz;
 
-                if (timei < NUM_T) {
-                    // Save it!
-                    if (direction > 0) {
-                        (*daN_ptr)[e_toti][timei] += dalpha_eq*dalpha_eq;
-                    } else {
-                        (*daS_ptr)[e_toti][timei] += dalpha_eq*dalpha_eq;
+                        // Bortnik A.18 -- part A0
+                        BB =   mres*wh/(gamma*v_para_star)
+                             - mres/(gamma*v_para_star)*dwh_ds*(ds/2.0) * (w/v_para_star)*kz;
+
+
+                        // Evaluate Bortnik A.26 -- integration performed thru Fresnel functions
+                        Farg = (BB + 2*AA*ds) / sqrt(2*PI*fabs(AA));
+                        Farg0 = BB / sqrt(2*PI*fabs(AA));  
+                        
+                        Fresnel(Farg, &Fs, &Fc);
+                        Fresnel(Farg0, &Fs0, &Fc0);
+                        
+                        dFs_sq = pow((Fs - Fs0),2);
+                        dFc_sq = pow((Fc - Fc0),2);
+                        
+                        // cout << "AA " << AA << " T1 " << T1 << " v_para " << v_para << " Dfs_sq " << dFs_sq << " dFc_sq " << dFc_sq << endl; 
+                        dalpha = sqrt(PI/4/fabs(AA))*fabs(T1/v_para)*sqrt(dFs_sq+dFc_sq);
+                        
+                        // Map the local change in pitch angle to the equivalent
+                        // pitch angle at the equator:  (still using dipole model here)
+                        // alpha_eq_p = asin( sin(alpha_lc+dalpha)*pow(clat,3) / 
+                        //            sqrt(slat_term) );
+                        // alpha_eq_p = asin( sin(alpha_lc + dalpha)*EA.Bo_ratio);
+                        alpha_eq_p = asin( sin(alpha_lc+dalpha)*pow(clat,3) / sqrt(slat_term) );
+                        // cout << "alpha_eq_p: " << alpha_eq_p << " alpha_eq: " << alpha_eq << endl;
+
+                        dalpha_eq = alpha_eq_p - alpha_eq;
+
+                        
+                        if (isnan(dalpha_eq)) {
+                            cout << "NaN: ";
+
+                            cout << "direction: " << direction << " v_to_arr[e_toti]: " << (*v_tot_arr_p)[e_toti] << " "; 
+                            printf("w1: %g gamma: %g alpha1: %g beta: %g alpha2: %g v_perp: %g v_tot: %g salph: %g e_toti: %g\n",
+                                    w1,    gamma,    alpha1,    beta,    alpha2,    v_perp,    v_tot,    salph,    e_toti);
+
+                            cout << "t: " << t << " f: " << f << " pwr: " << pwr << " mu: " << mu << " psi " << psi << " damp " << damping << endl;
+
+                            cout << " Byw " << Byw
+                            << " Exw " << Exw
+                            << " Eyw " << Eyw
+                            << " Ezw " << Ezw
+                            << " Bxw " << Bxw
+                            << " Bzw " << Bzw << endl;                        
+                            break;
+                        }
                     }
-                } else {
-                    // Do we want to track total scattering after TMAX?
-                }
-            } // v_para
-        } // mres loop
 
+                    if(direction>0) {
+                        flt_time = fabs(flt_const_N/v_para);
+                    } else {
+                        flt_time = fabs(flt_const_S/v_para);
+                    }
+                     
+                    // if (DEBUG) {printf("flt_time: %g dalpha_eq: %g alpha_eq_p: %g alpha_eq: %g\n",
+                    //                     flt_time,    dalpha_eq,    alpha_eq_p,    alpha_eq);}
 
+                    // Get time index into output array
+                    timei = round((t + flt_time)/TIME_STEP);
 
-
-
-
-    }
-
-
+                    if (timei < NUM_T) {
+                        // Save it!
+                        if (direction > 0) {
+                            (*daN_ptr)[e_toti][timei] += dalpha_eq*dalpha_eq;
+                        } else {
+                            (*daS_ptr)[e_toti][timei] += dalpha_eq*dalpha_eq;
+                        }
+                    } else {
+                        // Do we want to track total scattering after TMAX?
+                    }
+                } // v_para
+            } // mres loop
+        } // Power thresholding
+    } // crossing entries
 
 }
