@@ -37,9 +37,9 @@ struct scattering_params{
     double DE_EXP;
     double E_EXP_BOT;
     double E_EXP_TOP;
-    double * v_tot_arr;
     double E_BANDWIDTH;
-    double SCATTERING_RES_MODES;
+    int SCATTERING_RES_MODES;
+    int num_lons;
 };
 
 
@@ -61,7 +61,7 @@ void Fresnel(double x0, double *FS, double *FC);
 
 extern "C" void ctypes_trial(double *indatav, size_t size, double *outdatav);
 
-extern "C" void calc_scattering(double* crossings, size_t rows, double inp_pwr, EA_args EA,
+extern "C" void calc_scattering(double* crossings, size_t rows, double * inp_pwr, EA_args EA,
                     scattering_params params, double* da_N, double* da_S);
 
 

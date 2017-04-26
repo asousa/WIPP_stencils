@@ -85,7 +85,7 @@ nightday = 'nightside'
 # ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
 ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/'%nightday
 
-output_directory_root    = os.path.join(project_root, "outputs", "crossings_ngo_1hz", nightday)
+output_directory_root    = os.path.join(project_root, "outputs", "crossings_ngo_psi_fixing", nightday)
 
 # ----------------------------------------------------------
 

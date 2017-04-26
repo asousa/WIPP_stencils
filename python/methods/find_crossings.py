@@ -33,7 +33,7 @@ def calc_stix_parameters(rf, time_axis):
     #['qs', 'ms', 'nus', 'pos', 'n', 'stopcond', 'vprel', 'B0', 'w', 'time', 'Nspec', 'Ns', 'vgrel']
 
     # Magnetic field, index of refraction, number densities
-    Bmag = interpolate.interp1d(rf['time'],np.linalg.norm(rf['B0'],axis=1)).__call__(time_axis)
+    Bmag =  interpolate.interp1d(rf['time'],np.linalg.norm(rf['B0'],axis=1)).__call__(time_axis)
     n_vec = interpolate.interp1d(rf['time'],rf['n'], axis=0).__call__(time_axis)
     Ns    = interpolate.interp1d(rf['time'],rf['Ns'], axis=0).__call__(time_axis)
     
@@ -156,20 +156,14 @@ def gen_EA_array(Lshells, dlat_fieldline, center_lon, itime,  L_MARGIN = 0.1, xf
         fieldline['lat'] = lat_centers
         fieldline['L'] = L
         # Radius of tube around field line:
-        clam = np.sin(lat_centers*D2R)
-        slam = np.cos(lat_centers*D2R)
-        clam2 = pow(clam,2.)
-        slam2 = pow(slam,2.)
-        rootTerm = np.sqrt(1.0*3.0*slam2)
-       
-        clam = np.cos(lat_centers*D2R);
-        slam = np.sin(lat_centers*D2R);
-        clam2 = pow(clam,2);
-        slam2 = pow(slam,2);
-        rootTerm = np.sqrt(1+3*slam2);
+        clat = np.sin(lat_centers*D2R)
+        slat = np.cos(lat_centers*D2R)
+        clat2 = pow(clat,2.)
+        slat2 = pow(slat,2.)
+        slat_term = np.sqrt(1.0*3.0*slat2)
 
-        radii = clam2*clam / rootTerm * L_MARGIN
-        R_centers = L*clam2
+        radii = clat2*clat / slat_term * L_MARGIN
+        R_centers = L*clat2
         
         fieldline['R'] = R_centers
         fieldline['xradius']= radii
@@ -181,11 +175,11 @@ def gen_EA_array(Lshells, dlat_fieldline, center_lon, itime,  L_MARGIN = 0.1, xf
         fieldline['vol'] = seg_vol
         fieldline['total_vol'] = np.sum(seg_vol)
 
-        fieldline['x'] = R_centers*clam
-        fieldline['y'] = R_centers*slam
+        fieldline['x'] = R_centers*clat
+        fieldline['y'] = R_centers*slat
         
-        fieldline['x_unit_vect'] = (3*clam2 - 2) / rootTerm ;
-        fieldline['y_unit_vect'] = (3*slam*clam) / rootTerm ;
+        fieldline['x_unit_vect'] = (3*clat2 - 2) / slat_term ;
+        fieldline['y_unit_vect'] = (3*slat*clat) / slat_term ;
 
         coords_rllmag = np.vstack([R_centers, lat_centers, np.ones(len(lat_centers))*center_lon])
         coords_sm = []
@@ -196,12 +190,6 @@ def gen_EA_array(Lshells, dlat_fieldline, center_lon, itime,  L_MARGIN = 0.1, xf
 
         # Calculate loss cone angles:
         # (dipole field for now)
-
-        slat = np.sin(D2R*lat_centers)
-        clat = np.cos(D2R*lat_centers)
-        slat_term = np.sqrt(1. + 3.*slat*slat)
-
-
         fieldline['wh'] = (Q_EL*B0/M_EL)/pow(L, 3.)*slat_term/pow(clat,6.)
         fieldline['dwh_ds'] = 3.*fieldline['wh']/(L*R_E)*slat/slat_term*(1./(slat_term*slat_term) + 2./(clat*clat))
 
@@ -352,10 +340,23 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
             n = interpolate.interp1d(df['time'],rf['n'],axis=0).__call__(t_cur)
             mu = np.linalg.norm(n, axis=1)
 
+            # kvec = n*rf['w']/C
+            # kz = -1.0*np.sum(kvec*Bhat, axis=1)  # dot product of rows
+            # kx = np.linalg.norm(kvec + Bhat*kz[:,np.newaxis], axis=1)
+            # psi = R2D*np.arctan2(-kx, kz)
+
+            # kvec = n*rf['w']/C
+            # kz = np.sum(kvec*Bhat, axis=1)  # dot product of rows
+            # kx = np.linalg.norm(kvec - Bhat*kz[:,np.newaxis], axis=1)
+            # psi = np.arctan2(kx, kz)
+
+            # psi = R2D*np.arctan2(kx, kz)
+
             kvec = n*rf['w']/C
-            kz = -1.0*np.sum(kvec*Bhat, axis=1)  # dot product of rows
-            kx = np.linalg.norm(kvec + Bhat*kz[:,np.newaxis], axis=1)
-            psi = R2D*np.arctan2(-kx, kz)
+            kz = np.sum(kvec*Bhat, axis=1)  # dot product of rows
+            kx = np.linalg.norm(np.cross(kvec, Bhat), axis=1) # Cross product of rows
+            psi = np.arctan2(kx, kz)
+
 
             # Stash it somewhere:
             key = (freq, lat, lon)
@@ -424,8 +425,8 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
             # print "doing freqs between ", f1, "and", f2
 
             # Loop over adjacent sets:
-            ff = np.arange(0, (f2 - f1), 1)
-            # ff = np.arange(0, n_sub_freqs, 1)
+            # ff = np.arange(0, (f2 - f1), 1)  # This version for uniform in frequency
+            ff = np.arange(0, n_sub_freqs, 1)  # This version for constant steps per pair
             nf = len(ff)
 
             fine_freqs = f1 + (f2 - f1)*ff/nf

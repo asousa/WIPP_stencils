@@ -67,7 +67,7 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
   double(*phi_out_ptr)[NUM_E][NUM_T] = reinterpret_cast<double(*)[NUM_E][NUM_T]>(phi_out);
 
   // Jdiff:
-  double(*J_ptr)[n_JL][n_JE] = reinterpret_cast<double(*)[n_JL][n_JE]>(J);
+  // double(*J_ptr)[n_JL][n_JE] = reinterpret_cast<double(*)[n_JL][n_JE]>(J);
 
 
   // // Open up Phi file for writing
@@ -108,7 +108,7 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
   // Precalculate energy and velocity values
   for(i=0; i<NUM_E; i++) {
     E_tot_arr[i] = pow(10, (E_EXP_BOT+(DE_EXP/2)+DE_EXP*i) ); //E in eV
-    Jdiff[i] = getJdiff( J_ptr, n_JL, n_JE, E_tot_arr[i], alpha_eq, L_sh );
+    Jdiff[i] = getJdiff( J, n_JL, n_JE, E_tot_arr[i], alpha_eq, L_sh );
     v_tot_arr[i] = C*sqrt(1 - pow( (E_EL/(E_EL+E_tot_arr[i])) ,2) );
 
     // Energy differential dE in keV
@@ -253,12 +253,16 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
  * need be.
  *
  */
-double  getJdiff(double *J, int n_JL, int n_JE, double E, double alpha_lc, double L_sh)
+double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, double L_sh)
 {
   int row, i, topCol, botE;
   double J1, J2, I, x1, x2, y1, y2, m, c, x_ext, y_ext, J_ext;
 
-  row = (int)floor((L_sh + 0.11 - J[1][0])/0.1); // to make sure! 
+  double(*J)[n_JL][n_JE] = reinterpret_cast<double(*)[n_JL][n_JE]>(Jp);
+
+
+
+  row = (int)floor((L_sh + 0.11 - (*J)[1][0])/0.1); // to make sure! 
   
   // if(  fabs((double)J[row][0]-L_TARG) > 1e-3   ) 
   //   printf("\nL-shell not matching data\n\a");
@@ -267,7 +271,7 @@ double  getJdiff(double *J, int n_JL, int n_JE, double E, double alpha_lc, doubl
 
   // Find column corresponding to highest energy value
   for(i=0; i<100; i++) {
-    if(J[0][i+1] < 0.01) { 
+    if((*J)[0][i+1] < 0.01) { 
       topCol = i; 
       break; 
     }
@@ -281,13 +285,13 @@ double  getJdiff(double *J, int n_JL, int n_JE, double E, double alpha_lc, doubl
   if( E <= 1e5 ) {
  
     // diff flux @ 100 keV and 200 keV
-    J1 = 1e-6*fabs(J[row][2] - J[row][1]) / (J[0][2] - J[0][1]); 
-    J2 = ((1e-6*fabs(J[row][3] - J[row][2]) / (J[0][3] - J[0][2])) 
+    J1 = 1e-6*fabs( (*J)[row][2] - (*J)[row][1]) / ((*J)[0][2] - (*J)[0][1]); 
+    J2 = ((1e-6*fabs((*J)[row][3] - (*J)[row][2]) / ((*J)[0][3] - (*J)[0][2])) 
       + J1 )/2; // central difference
 
     // do extrapolation in log-log space for best fit 
-    x1 = log10( J[0][1]*1e6 );
-    x2 = log10( J[0][2]*1e6 );
+    x1 = log10( (*J)[0][1]*1e6 );
+    x2 = log10( (*J)[0][2]*1e6 );
     y1 = log10( J1 );
     y2 = log10( J2 );
 
@@ -312,19 +316,19 @@ double  getJdiff(double *J, int n_JL, int n_JE, double E, double alpha_lc, doubl
   if( E >= 7e6 ) {
   
     // If flux at 7 Mev = 0, flux above it is zero too
-    if( J[row][topCol]==0 )  return 0;
+    if( (*J)[row][topCol]==0 )  return 0;
 
     // Otherwise need to extrapolate as in case 1.
     // diff flux @ 6.5 MeV and 7 MeV
-    J2 = 1e-6*fabs( J[row][topCol] - J[row][topCol-1] ) 
+    J2 = 1e-6*fabs( (*J)[row][topCol] - (*J)[row][topCol-1] ) 
       / (J[0][topCol] - J[0][topCol-1]); 
 
     J1 = ((1e-6*fabs( J[row][topCol-1] - J[row][topCol-2]) / 
        (J[0][topCol-1] - J[0][topCol-2]) ) + J2 )/2; // cdiff
 
     // do extrapolation in log-log space for best fit 
-    x1 = log10( J[0][topCol-1]*1e6 );
-    x2 = log10( J[0][topCol]*1e6 );
+    x1 = log10( (*J)[0][topCol-1]*1e6 );
+    x2 = log10( (*J)[0][topCol]*1e6 );
     y1 = log10( J1 );
     y2 = log10( J2 );
 
@@ -347,7 +351,7 @@ double  getJdiff(double *J, int n_JL, int n_JE, double E, double alpha_lc, doubl
 
     // Find column corresponding lower energy value
     for(i=1; i<100; i++) {
-      if( (J[0][i+1]*1e6) > E ) { 
+      if( ((*J)[0][i+1]*1e6) > E ) { 
     botE = i; 
     break; 
       }
@@ -355,23 +359,23 @@ double  getJdiff(double *J, int n_JL, int n_JE, double E, double alpha_lc, doubl
 
 
     // central diff flux @ lower and higher energies
-    J1 = ( (1e-6 * fabs( J[row][botE] - J[row][botE-1] )
-        / ( J[0][botE] - J[0][botE-1] ) ) + 
-       (1e-6 * fabs( J[row][botE+1] - J[row][botE] )
-        / ( J[0][botE+1] - J[0][botE] ) )  ) / 2;
+    J1 = ( (1e-6 * fabs( (*J)[row][botE] - (*J)[row][botE-1] )
+        / ( (*J)[0][botE] - (*J)[0][botE-1] ) ) + 
+       (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
+        / ( (*J)[0][botE+1] - (*J)[0][botE] ) )  ) / 2;
 
-    J2 = ( (1e-6 * fabs( J[row][botE+1] - J[row][botE] )
-        / ( J[0][botE+1] - J[0][botE] ) ) + 
-       (1e-6 * fabs( J[row][botE+2] - J[row][botE+1] )
-        / ( J[0][botE+2] - J[0][botE+1] ) )  ) / 2;
+    J2 = ( (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
+        / ( (*J)[0][botE+1] - (*J)[0][botE] ) ) + 
+       (1e-6 * fabs( (*J)[row][botE+2] - (*J)[row][botE+1] )
+        / ( (*J)[0][botE+2] - (*J)[0][botE+1] ) )  ) / 2;
 
     if(botE == 1)
-      J1 =  (1e-6 * fabs( J[row][botE+1] - J[row][botE] )
-          / ( J[0][botE+1] - J[0][botE] ) );
+      J1 =  (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
+          / ( (*J)[0][botE+1] - (*J)[0][botE] ) );
     
     if(botE == (topCol-1))
-      J2 = (1e-6 * fabs( J[row][botE+1] - J[row][botE] )
-        / ( J[0][botE+1] - J[0][botE] ) );
+      J2 = (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
+        / ( (*J)[0][botE+1] - (*J)[0][botE] ) );
     
 
 
@@ -383,8 +387,8 @@ double  getJdiff(double *J, int n_JL, int n_JE, double E, double alpha_lc, doubl
 
     // If only J2 = 0, do linear interpolation
     if( J2 == 0 ) {
-      J_ext = J1*( ( J[0][botE+1]-(E*1e-6) )/
-           ( J[0][botE+1] - J[0][botE] ) );
+      J_ext = J1*( ( (*J)[0][botE+1]-(E*1e-6) )/
+           ( (*J)[0][botE+1] - (*J)[0][botE] ) );
       return (J_ext/I);
     }
 
@@ -392,8 +396,8 @@ double  getJdiff(double *J, int n_JL, int n_JE, double E, double alpha_lc, doubl
 
     // Otherwise interpolate as in case 1 (log-log space)
 
-    x1 = log10( J[0][botE]*1e6 );
-    x2 = log10( J[0][botE+1]*1e6 );
+    x1 = log10( (*J)[0][botE]*1e6 );
+    x2 = log10( (*J)[0][botE+1]*1e6 );
     y1 = log10( J1 );
     y2 = log10( J2 );
 
