@@ -50,7 +50,7 @@ def calc_flux(scattering_dir=None,
                 flash_lat=35,
                 mlt = 0,
                 alpha_dist = 0,
-                flux_dist  = 0,
+                flux_dist  = 1,
                 fluxfile = '/shared/users/asousa/WIPP/WIPP_stencils/c/data/AE8MaxFlux_expanded.dat',
                 itime = datetime.datetime(2010,1,1,0,0,0)):
 
@@ -61,6 +61,12 @@ def calc_flux(scattering_dir=None,
     # The function
     calc_flux_c = lib.calc_flux
 
+    calc_flux_c.restype = None
+    calc_flux_c.argtypes =  [ndpointer(ct.c_double,flags='C_CONTIGUOUS'),
+                            ct.Structure,
+                            ndpointer(ct.c_double,flags='C_CONTIGUOUS'),
+                            ct.c_double,
+                            ndpointer(ct.c_double,flags='C_CONTIGUOUS')]
 
 
 
@@ -69,12 +75,17 @@ def calc_flux(scattering_dir=None,
 
     JL = Jdata[1:,0]  # L-shells in J-file
     JE = Jdata[0,1:]  # Energies in J-file
-
+    print "J is: ", np.shape(Jdata)
     print JL  
     print JE 
 
     infile = os.path.join(scattering_dir,'scattering_inlat_%d.pklz'%flash_lat)
-    
+    outfile = os.path.join(out_dir,'flux_inlat_%d.pklz'%flash_lat)
+
+    if not os.path.exists(out_dir):
+        os.system('mkdir -p %s'%out_dir)
+
+
 
     with gzip.open(infile,'r') as file:
         indata = pickle.load(file)
@@ -86,15 +97,51 @@ def calc_flux(scattering_dir=None,
 
     print pyparams.keys()
 
+    f_params = flux_params()
+    f_params.NUM_E          = pyparams['NUM_E']
+    f_params.NUM_T          = len(pyparams['tvec'])
+    f_params.dt             = pyparams['tvec'][1] - pyparams['tvec'][0]
+    f_params.DE_EXP         = np.log10(pyparams['E_tot_arr'][1]) - np.log10(pyparams['E_tot_arr'][0])
+    f_params.E_EXP_BOT      = np.log10(pyparams['Emin'])
+    f_params.E_EXP_TOP      = np.log10(pyparams['Emax'])
+    f_params.alpha_dist     = alpha_dist
+    f_params.flux_dist      = flux_dist
+    f_params.n_JL           = np.shape(Jdata)[0]
+    f_params.n_JE           = np.shape(Jdata)[1]
 
 
+    flux_N = np.zeros_like(da_N)
+    flux_S = np.zeros_like(da_S)
+
+    for L_ind, L in enumerate(pyparams['Lshells']):
+        for lon_ind in range(np.shape(da_N)[1]):
+            print "Calculating at ", L, lon_ind
+            calc_flux_c(da_N[L_ind, lon_ind, :, :], f_params, Jdata, L, flux_N[L_ind, lon_ind, :, :])
+            calc_flux_c(da_S[L_ind, lon_ind, :, :], f_params, Jdata, L, flux_S[L_ind, lon_ind, :, :])
 
 
+    print "Saving..."
+
+    outdata = dict()
+    outdata['phi_N'] = flux_N
+    outdata['phi_S'] = flux_S
+    outdata['params'] = pyparams
+    outdata['params']['flux_dist'] = flux_dist
+    outdata['params']['alpha_dist'] = alpha_dist
+
+    with gzip.open(outfile,'w') as file:
+        pickle.dump(outdata, file)
+
+    print "Finished!"
 
 if __name__ == "__main__":
-    calc_flux(scattering_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_v2/')
+    calc_flux(scattering_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_psi_fixing_blerg/',
+            out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/flux',
+            flash_lat = 35
+        )
 
 
+                    
 
 
 

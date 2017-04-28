@@ -55,8 +55,8 @@ freqs = np.round(pow(10, flogs)/10.)*10
 freq_pairs = zip(freqs[0:], freqs[1:])
 
 # freq_pairs = freq_pairs[0:1]
-Llims = [2,4]
-Lstep = 0.5
+Llims = [1.2,7]
+Lstep = 0.1
 out_Lsh = np.arange(Llims[0], Llims[1], Lstep)
 out_lat = np.round(10.0*np.arccos(np.sqrt(1./out_Lsh))*R2D)/10.0
 
@@ -85,7 +85,7 @@ nightday = 'nightside'
 # ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
 ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/'%nightday
 
-output_directory_root    = os.path.join(project_root, "outputs", "crossings_ngo_psi_fixing", nightday)
+output_directory_root    = os.path.join(project_root, "outputs", "crossings_ngo_full", nightday)
 
 # ----------------------------------------------------------
 

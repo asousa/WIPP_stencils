@@ -50,8 +50,8 @@ struct flux_params{
     double DE_EXP;
     double E_EXP_BOT;
     double E_EXP_TOP;
-    double alpha_dist;
-    double flux_dist;
+    int alpha_dist;
+    int flux_dist;
     size_t n_JL;
     size_t n_JE;
 };

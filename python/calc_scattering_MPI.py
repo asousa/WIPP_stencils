@@ -289,14 +289,23 @@ def calc_scattering_MPI(crossing_dir=None,
 
                 center_lat = (lat_pair[0] + lat_pair[1] )/2.
                 center_freq = (freq_pair[0] + freq_pair[1])/2.
-                pwr_key = (center_freq, center_lat)
+                # pwr_key = (center_freq, center_lat)
+
+                pwr_freq_ind = np.argmin(np.abs(pwr_db['cfreqs'] - center_freq))
+                pwr_lat_ind  = np.argmin(np.abs(pwr_db['clats'] - center_lat))
+
+                inp_pwrs = pwr_db['pwr'][pwr_freq_ind, pwr_lat_ind, :]*pow(I0, 2.)
+
+                print pwr_freq_ind, pwr_db['cfreqs'][pwr_freq_ind], center_freq
+                print pwr_lat_ind, pwr_db['clats'][pwr_lat_ind], center_lat
                 # Temporary band aid: Crossing detection was done with 1-deg bins,
                 # input power was calculated with 0.25-deg bins.        
                 # inp_pwr = np.sum(pwr_db[pwr_key][0:4])
-                inp_pwrs = np.asarray(pwr_db[pwr_key])*pow(np.abs(I0)/10000., 2)  # rescale to new I0
+                # inp_pwrs = np.asarray(pwr_db[pwr_key])*pow(np.abs(I0)/10000., 2)  # rescale to new I0
 
                 print np.shape(inp_pwrs)
                 # inp_pwr = pwr_db[pwr_key][0]*pow(np.abs(I0)/10000., 2)  # rescale to new I0
+                num_lons = min(num_lons, len(inp_pwrs))
 
                 # Load crossings 
                 crossing_fname = os.path.join(crossing_dir,'crossing_log_lat_%d-%d_f_%d-%d.pklz'%(
@@ -426,14 +435,14 @@ def calc_scattering_MPI(crossing_dir=None,
 
 if __name__ == "__main__":
     calc_scattering_MPI(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/outputs/crossings_ngo_psi_fixing/nightside/ngo_v2/python_data',
-                    power_dir    = '/shared/users/asousa/WIPP/lightning_power_study/outputs/input_powers',
-                    out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_psi_fixing_blerg/',
+                    power_dir    = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/input_energies',
+                    out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_psi_fixing_reversed_psi/',
                     flash_lat=35,
                     mlt = 0,
                     max_dist=1000,
                     I0=-100000,
-                    d_lon = 0.25,
-                    num_lons=40,
+                    d_lon = 1,
+                    num_lons=5,
                     f_low=200, f_hi=30000,
                     L_low = 1, L_hi = 10,
                     itime = datetime.datetime(2010,1,1,0,0,0))

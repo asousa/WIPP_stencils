@@ -66,59 +66,57 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
   // Output space
   double(*phi_out_ptr)[NUM_E][NUM_T] = reinterpret_cast<double(*)[NUM_E][NUM_T]>(phi_out);
 
-  // Jdiff:
-  // double(*J_ptr)[n_JL][n_JE] = reinterpret_cast<double(*)[n_JL][n_JE]>(J);
+  
+  // // Echo the input parameters:
+  // cout << "--------- flux methods ---------" << endl;
+  // cout << "NUM_E " << NUM_E << endl;
+  // cout << "NUM_T " << NUM_T << endl;
+  // cout << "dt "    << params.dt << endl;
+  // cout << "DE_EXP " << DE_EXP << endl;
+  // cout << "E_EXP_BOT " << E_EXP_BOT << endl;
+  // cout << "E_EXP_TOP " << E_EXP_TOP << endl;
+  // cout << "alpha dist " << alpha_dist << endl;
+  // cout << "flux dist " << flux_dist << endl;
+  // cout << "n_JL " << n_JL << endl;
+  // cout << "n_JE " << n_JE << endl;
 
 
-  // // Open up Phi file for writing
-  // if(k==0) {NS = "N";} else {NS="S";}  
 
-  // sprintf( PhiFile, "%s/phi_%g_%g_%s.dat", out_dir.c_str(), out_lat, out_lon, NS );
-  // sprintf( QFile,   "%s/Q_%g_%g_%s.dat", out_dir.c_str(), out_lat, out_lon, NS );
-  // sprintf( NFile,   "%s/N_%g_%g_%s.dat", out_dir.c_str(), out_lat, out_lon, NS );
-  // sprintf( alphaFile,   "%s/alpha_%g_%g_%s.dat", out_dir.c_str(), out_lat, out_lon, NS );  
-
-  // printf("writing %s\n", PhiFile);
-
-  // if( (phiPtr=fopen(PhiFile, "wb"))==NULL ) {
-  //   printf("\nProblem opening %s\n", PhiFile);
-  //   exit(0);
-  //  }
-
-  // if( (alphaPtr=fopen(alphaFile, "wb"))==NULL ) {
-  //   printf("\nProblem opening %s\n", alphaFile);
-  //  exit(0);
-  // }
-
-  // double L_sh = lat2L(out_lat);
-
-  // cout << "lat: " << out_lat << endl;
-  cout << "L-shell: " << L_sh << endl;
+  // cout << "L-shell: " << L_sh << endl;
   epsm = (1/L_sh)*(R_E+H_IONO)/R_E;
   // (1/sin(alpha_lc)^2) -- geometric focusing term (Bortnik 5.2)
   crunch  = sqrt(1+3*(1-epsm))/pow(epsm,3); 
   // Loss-cone angle at equator:
   alpha_eq  = asin(sqrt( 1.0/crunch ));
   
-  printf("alpha_eq: %g\n",R2D*alpha_eq);
-  printf("crunch: %g\n",crunch);
+  // printf("alpha_eq: %g\n",R2D*alpha_eq);
+  // printf("crunch: %g\n",crunch);
   // Load flux file:
   // readJ(J, flux_filename);
 
   // Precalculate energy and velocity values
+  // cout << "calculating energy / velocity vectors \n";
   for(i=0; i<NUM_E; i++) {
     E_tot_arr[i] = pow(10, (E_EXP_BOT+(DE_EXP/2)+DE_EXP*i) ); //E in eV
-    Jdiff[i] = getJdiff( J, n_JL, n_JE, E_tot_arr[i], alpha_eq, L_sh );
+    // Jdiff[i] = getJdiff( J, n_JL, n_JE, E_tot_arr[i], alpha_eq, L_sh );
     v_tot_arr[i] = C*sqrt(1 - pow( (E_EL/(E_EL+E_tot_arr[i])) ,2) );
-
     // Energy differential dE in keV
     dE_arr[i] = 1e-3 * pow(10, (E_EXP_BOT+ (DE_EXP/2))) * 
       exp(DE_EXP*i / log10(NAPe)) * DE_EXP / log10(NAPe);
   }
 
+  // Precalculate Jdiff:
+  // cout << "getting Jdiff\n";
+  for(i=0; i<NUM_E; i++) {
+
+    Jdiff[i] = getJdiff( J, n_JL, n_JE, E_tot_arr[i], alpha_eq, L_sh );
+    // cout << Jdiff[i] << " ";
+  }
+
+  // cout << "Doin thangs\n";
   // Loop over energies:
   for(ei=0; ei<NUM_E; ei++) {
-     
+     // cout << endl << "Ei: " <<  ei << endl;
     // Get flux magnitude at this energy and L-shell:
     switch(flux_dist) {
       case 0:
@@ -151,10 +149,11 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
         exit(0);
       }
 
+    // cout << "b is: " << b << endl;
 
     // Loop over timesteps:
     for(ti=0; ti<NUM_T; ti++) {
-      
+      // cout << ti << " ";
       // alpha = sqrt( arr[ei*NUM_TIMES+ti] );
       // alpha = sqrt(arr[ei][ti]);
       alpha = sqrt( (*da_ptr)[ei][ti] );
@@ -165,7 +164,7 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
 
         // printf("ei: %d ti: %d alpha: %g\n",ei, ti, alpha);
       }
-      nout=fwrite(&alpha, sizeof(float), 1, alphaPtr);      
+      // nout=fwrite(&alpha, sizeof(float), 1, alphaPtr);      
 
       // Peak change in pitch-angle at this time and energy:
       da_pk = sqrt(2.0)*alpha;  // sqrt(2)*alpha_RMS = peak
@@ -222,17 +221,20 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
         nancounter=nancounter + 1;
         //printf("Total NaNs: %i\n",nancounter);
       };
-        nout=fwrite(&Phi_p, sizeof(double), 1, phiPtr);
+
+      (*phi_out_ptr)[ei][ti] = Phi_p;
+
+        // nout=fwrite(&Phi_p, sizeof(double), 1, phiPtr);
       // nout=fwrite(&Phi_float, sizeof(float), 1, phiPtr);
       
     } // for(ti ... )
   } // for(ei ... )
   
-  fclose(phiPtr);
-  fclose(alphaPtr);
+  // fclose(phiPtr);
+  // fclose(alphaPtr);
 
-  printf("Total NaNs: %i\n",nancounter);
-  printf("max pitch-angle deflection: %g deg\n",R2D*max_alpha);
+  // printf("Total NaNs: %i\n",nancounter);
+  // printf("max pitch-angle deflection: %g deg\n",R2D*max_alpha);
 
 }
 
@@ -246,7 +248,7 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
 
 /*
  * FUNCTION: getJdiff
- * ------------------
+ * ------------------+
  * Using the AE8 data stored in J, calculate the differential flux 
  * by taking the (energy) derivative of the integral flux, dividing
  * by the total solid angle and extrapolating down in energy if 

@@ -78,8 +78,10 @@ nProcs = 1.0*comm.Get_size()
 
 
 # Center of latitude and longitude bins (offset from flash location)
-clat_offsets = np.arange(-max_lat, max_lat + dlat, dlat)
-clon_offsets = np.arange(-dlon/2., max_lon + dlon/2., dlon)
+# clat_offsets = np.arange(-max_lat, max_lat + dlat, dlat)
+clat_offsets = np.linspace(-max_lat, max_lat, (2*max_lat/dlat) + 1)
+clon_offsets = np.linspace(0, max_lon, max_lon/dlon + 1) - dlon/2.
+# clon_offsets = np.arange(-dlon/2., max_lon + dlon, dlon)
 
 clat_pairs = zip(clat_offsets[0:-1], clat_offsets[1:])
 clon_pairs = zip(clon_offsets[0:-1], clon_offsets[1:])
@@ -93,8 +95,6 @@ if rank==0:
         os.system('mkdir -p %s'%out_base)
 
     print len(ilats), len(ilons), len(ifreqs)
-    print clat_pairs
-    print clon_pairs
     jobs = [(w,x,y,z) for w,x,y,z in itertools.product(flash_lat_inds, ilats, ilons, ifreqs)]
     np.random.shuffle(jobs)
     n_workers =min(len(jobs), nProcs - 1)
@@ -126,7 +126,7 @@ if rank == 0:
 
     for d in out_dbs:
         # power output is a 3d array, freq x lat x lon
-        d['pwr'] = np.zeros([len(freq_pairs), len(clat_offsets), len(clon_offsets)])
+        d['pwr'] = np.zeros([len(freq_pairs), len(clat_pairs), len(clon_pairs)])
 
     # Each individual cell is its own job
     for i in range(len(jobs)):
