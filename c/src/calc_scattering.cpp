@@ -77,7 +77,8 @@ void calc_scattering(double* crossings, size_t rows, double* inp_pwr, EA_args EA
     // cout << "num_lons " << num_lons << endl;
 
     // 2d input array
-    double(*cross_ptr)[rows][6] = reinterpret_cast<double(*)[rows][6]>(crossings);
+    const int list_width = 7;
+    double(*cross_ptr)[rows][list_width] = reinterpret_cast<double(*)[rows][list_width]>(crossings);
     // 2d output arrays
     double(*daN_ptr)[num_lons][NUM_E][NUM_T] = reinterpret_cast<double(*)[num_lons][NUM_E][NUM_T]>(da_N);
     double(*daS_ptr)[num_lons][NUM_E][NUM_T] = reinterpret_cast<double(*)[num_lons][NUM_E][NUM_T]>(da_S);
@@ -86,7 +87,7 @@ void calc_scattering(double* crossings, size_t rows, double* inp_pwr, EA_args EA
 
     double E_tot_arr[NUM_E];
     double v_tot_arr[NUM_E];
-
+    double vel;
     for(int i=0; i<NUM_E; i++) {
        E_tot_arr[i] = pow(10, (E_EXP_BOT+ DE_EXP*i) ); // energy in eV
        v_tot_arr[i] = C*sqrt(1 - pow( (E_EL/(E_EL+E_tot_arr[i])) ,2) );
@@ -148,10 +149,14 @@ void calc_scattering(double* crossings, size_t rows, double* inp_pwr, EA_args EA
         psi     = (*cross_ptr)[i][3];
         mu      = (*cross_ptr)[i][4];
         damping = (*cross_ptr)[i][5];
+        vel     = (*cross_ptr)[i][6];
+
         for (int lon_ind = 0; lon_ind < num_lons; ++lon_ind) {
             // cout << "Lon ind: " << lon_ind << endl;
-            pwr     = (*cross_ptr)[i][2]*( *pwr_ptr)[lon_ind];
-
+            pwr     = ((*cross_ptr)[i][2])*(( *pwr_ptr)[lon_ind]);
+            // cout << "t: " << t << " f: " << f << " psi: " << psi << " mu: " << mu << endl;
+            // cout << " lon ind: " << lon_ind << " input power: " << ( *pwr_ptr)[lon_ind] << " J\n";
+            // cout << " scale factor: " << (*cross_ptr)[i][2] << " S: " << pwr << endl;
 
             if (damping > DAMPING_THRESH) {
 
@@ -182,9 +187,9 @@ void calc_scattering(double* crossings, size_t rows, double* inp_pwr, EA_args EA
                 rho2 = (mu_sq - stixS) / stixD ;
 
                 // (bortnik 2.28)
-                Byw_sq =  2.0*MU0/C*pwr*stixX*stixX*rho2*rho2*mu*fabs(cpsi)/
-                   sqrt(  pow((tan(psi)-rho1*rho2*stixX),2) + 
-                   pow( (1+rho2*rho2*stixX), 2 ) );
+                Byw_sq =  (2.0*MU0/C)*pwr*pow(stixX,2.)*pow(rho2,2.)*mu*fabs(cpsi)/
+                   sqrt(  pow((tan(psi)-rho1*rho2*stixX),2.) + 
+                          pow( (1+rho2*rho2*stixX), 2.) );
 
                 // cout << "Byw_sq: " << Byw_sq << endl;
 

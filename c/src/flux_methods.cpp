@@ -34,7 +34,9 @@ double t5[] =   {0.,         0.53846931, -0.53846931, 0.90617985, -0.90617985};
 // {
 
 void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *phi_out) {
-
+  // Calculate Phi for northern and southern hemispheres
+  // (Bortnik 5.2).
+  // Units are [#/cm^2/keV/sec]
 
   FILE *phiPtr, *QPtr, *NPtr, *alphaPtr;
   int ei, ti, i, nout;
@@ -190,7 +192,7 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
             case 0:
               // Sine (ramp) distribution
               // g = (P/PI)*sin(2.0*x)*((x - alpha_eq)*( asin((x-alpha_eq)/da_pk)+ (PI/2.0) ) +
-              //   sqrt(da_pk*da_pk-pow((x-alpha_eq),2)));
+                // sqrt(da_pk*da_pk-pow((x-alpha_eq),2)));
               // same thing, but simplified to ditch numerical errors when t1 is small:
               t1 = (x - alpha_eq);
               t2 = fabs(da_pk)*sqrt(1 -0.25*pow(t5[i] - 1, 2));
@@ -219,7 +221,7 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
         // " crunch= " << crunch <<
         // " I= " << I << endl;  
         nancounter=nancounter + 1;
-        //printf("Total NaNs: %i\n",nancounter);
+        printf("Total NaNs: %i\n",nancounter);
       };
 
       (*phi_out_ptr)[ei][ti] = Phi_p;

@@ -137,7 +137,8 @@ def calc_flux(scattering_dir=None,
 if __name__ == "__main__":
     calc_flux(scattering_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_psi_fixing_blerg/',
             out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/flux',
-            flash_lat = 35
+            flash_lat = 35,
+            alpha_dist = 1
         )
 
 

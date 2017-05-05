@@ -82,14 +82,13 @@ def haversine_np(lon1, lat1, lon2, lat2):
 def calc_scattering_MPI(crossing_dir=None,
                     power_dir    = None,
                     out_dir = None,
-                    flash_lat=35,
-                    mlt = 0,
-                    max_dist=200,
-                    I0=-10000,
-                    d_lon = 0.25,
-                    num_lons=5,
-                    f_low=200, f_hi=500,
-                    L_low = 1, L_hi = 10,
+                    flash_lat=None,
+                    mlt = None,
+                    max_dist=None,
+                    I0= None,
+                    d_lon = None,
+                    num_lons=None,
+                    f_low=None, f_hi=None,
                     itime = datetime.datetime(2010,1,1,0,0,0)):
 
     # Parameters
@@ -97,8 +96,8 @@ def calc_scattering_MPI(crossing_dir=None,
     Emax = 1.0e8 # 10Mev
     NUM_E = 512
     SCATTERING_RES_MODES = 5
-    E_BANDWIDTH = 0.3
-    
+    E_BANDWIDTH = 10 #0.3
+
     # Constants
     Hz2Rad = 2.*np.pi
     D2R = np.pi/180.
@@ -289,21 +288,26 @@ def calc_scattering_MPI(crossing_dir=None,
 
                 center_lat = (lat_pair[0] + lat_pair[1] )/2.
                 center_freq = (freq_pair[0] + freq_pair[1])/2.
+                # Old way
                 # pwr_key = (center_freq, center_lat)
+                # inp_pwrs = np.asarray(pwr_db[pwr_key])*pow(np.abs(I0)/10000., 2)  # rescale to new I0
 
+                # New way
                 pwr_freq_ind = np.argmin(np.abs(pwr_db['cfreqs'] - center_freq))
                 pwr_lat_ind  = np.argmin(np.abs(pwr_db['clats'] - center_lat))
+                inp_pwrs = pwr_db['pwr'][pwr_freq_ind, pwr_lat_ind, 0:num_lons]*pow(I0, 2.)
 
-                inp_pwrs = pwr_db['pwr'][pwr_freq_ind, pwr_lat_ind, :]*pow(I0, 2.)
-
-                print pwr_freq_ind, pwr_db['cfreqs'][pwr_freq_ind], center_freq
-                print pwr_lat_ind, pwr_db['clats'][pwr_lat_ind], center_lat
+                # print pwr_freq_ind, pwr_db['cfreqs'][pwr_freq_ind], center_freq
+                # print pwr_lat_ind, pwr_db['clats'][pwr_lat_ind], center_lat
+                
                 # Temporary band aid: Crossing detection was done with 1-deg bins,
                 # input power was calculated with 0.25-deg bins.        
                 # inp_pwr = np.sum(pwr_db[pwr_key][0:4])
                 # inp_pwrs = np.asarray(pwr_db[pwr_key])*pow(np.abs(I0)/10000., 2)  # rescale to new I0
 
-                print np.shape(inp_pwrs)
+                print "input powers: ", inp_pwrs
+
+                # print np.shape(inp_pwrs)
                 # inp_pwr = pwr_db[pwr_key][0]*pow(np.abs(I0)/10000., 2)  # rescale to new I0
                 num_lons = min(num_lons, len(inp_pwrs))
 
@@ -344,7 +348,7 @@ def calc_scattering_MPI(crossing_dir=None,
                         EA.ftc_s      = ct.c_double(fl['ftc_s'][h])
 
                         crossing_list = np.array(fl['crossings'][h])
-
+                        # print crossing_list
                         # tmpN = np.zeros([len(E_tot_arr), len(time) + 1])
                         # tmpS = np.zeros([len(E_tot_arr), len(time) + 1])
                         
@@ -374,8 +378,20 @@ def calc_scattering_MPI(crossing_dir=None,
         pyparams['v_tot_arr'] = v_tot_arr
         pyparams['Lshells'] = Lshells
         pyparams['tvec'] = time
-        pyparams['L_low'] = L_low
-        pyparams['L_hi'] = L_hi
+
+
+
+        # for outlon in range(num_lons):
+
+        #     outfile = os.path.join(out_dir,'scattering_inlat_%d_outlon_%d.pklz'%(flash_lat, outlon))
+        #     outdict = dict()
+        #     outdict['da_N'] = da_N[:,outlon,:,:]
+        #     outdict['da_S'] = da_S[:,outlon,:,:]
+        #     outdict['lon_ind'] = outlon
+        #     outdict['params'] = pyparams
+
+        #     with gzip.open(outfile,'wb') as file:
+        #         pickle.dump(outdict,file)
 
 
 
@@ -388,6 +404,16 @@ def calc_scattering_MPI(crossing_dir=None,
 
         with gzip.open(outfile,'wb') as file:
             pickle.dump(outdict,file)
+
+
+
+
+
+
+
+
+
+
 
 
     # for lat1, lat2 in lat_pairs:
@@ -434,17 +460,17 @@ def calc_scattering_MPI(crossing_dir=None,
 
 
 if __name__ == "__main__":
-    calc_scattering_MPI(crossing_dir='/shared/users/asousa/WIPP/WIPP_stencils/outputs/crossings_ngo_psi_fixing/nightside/ngo_v2/python_data',
-                    power_dir    = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/input_energies',
-                    out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_psi_fixing_reversed_psi/',
-                    flash_lat=35,
-                    mlt = 0,
-                    max_dist=1000,
-                    I0=-100000,
-                    d_lon = 1,
-                    num_lons=5,
-                    f_low=200, f_hi=30000,
-                    L_low = 1, L_hi = 10,
-                    itime = datetime.datetime(2010,1,1,0,0,0))
+    calc_scattering_MPI(
+        crossing_dir ='/shared/users/asousa/WIPP/WIPP_stencils/outputs/crossings6/nightside/ngo_v2/python_data',
+        power_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/input_energies/',
+        out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_debug_again/',
+        flash_lat=35,
+        mlt = 0,
+        max_dist=120,
+        I0=-10000,
+        d_lon = 1,
+        num_lons=2,
+        f_low=200, f_hi=30000,
+        itime = datetime.datetime(2010,1,1,0,0,0))
 
 

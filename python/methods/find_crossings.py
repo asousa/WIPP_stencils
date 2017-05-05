@@ -156,11 +156,11 @@ def gen_EA_array(Lshells, dlat_fieldline, center_lon, itime,  L_MARGIN = 0.1, xf
         fieldline['lat'] = lat_centers
         fieldline['L'] = L
         # Radius of tube around field line:
-        clat = np.sin(lat_centers*D2R)
-        slat = np.cos(lat_centers*D2R)
+        slat = np.sin(lat_centers*D2R)
+        clat = np.cos(lat_centers*D2R)
         clat2 = pow(clat,2.)
         slat2 = pow(slat,2.)
-        slat_term = np.sqrt(1.0*3.0*slat2)
+        slat_term = np.sqrt(1. + 3.*slat2)
 
         radii = clat2*clat / slat_term * L_MARGIN
         R_centers = L*clat2
@@ -251,10 +251,10 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                     mlt = 0,
                     tmax=10,
                     dt=0.1,
-                    lat_low=40,
+                    lat_low=None,
                     f_low=200, f_hi=30000,
-                    center_lon = 0,
-                    lon_spacing = 0.25,
+                    center_lon = None,
+                    lon_spacing = None,
                     itime = datetime.datetime(2010,1,1,0,0,0),
                     lat_step_size = 1,
                     n_sub_freqs=10,
@@ -329,8 +329,13 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
             x = interpolate.interp1d(rf['time'],rf['pos']['x']).__call__(t_cur)/R_E
             y = interpolate.interp1d(rf['time'],rf['pos']['y']).__call__(t_cur)/R_E
             z = interpolate.interp1d(rf['time'],rf['pos']['z']).__call__(t_cur)/R_E
+
             d = interpolate.interp1d(df['time'],df['damping'], bounds_error=False, fill_value=0).__call__(t_cur)
-            
+
+            v = interpolate.interp1d(df['time'],rf['vgrel'], axis=0).__call__(t_cur)
+            vmag = np.linalg.norm(v, axis=1)
+
+
             B = interpolate.interp1d(rf['time'],rf['B0'], axis=0).__call__(t_cur)
             Bnorm = np.linalg.norm(B, axis=1)
             Bhat = B/Bnorm[:,np.newaxis]
@@ -372,6 +377,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
             curdata['stixL'] = stixL
             curdata['mu'] = mu
             curdata['psi'] = psi
+            curdata['vgrel'] = vmag
 
 
             center_data[key] = curdata
@@ -392,7 +398,7 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
             d['stixP'] = center_data[key]['stixP']
             d['mu'] = center_data[key]['mu']
             d['psi'] = center_data[key]['psi']
-
+            d['vgrel'] = center_data[key]['vgrel']
             ray_data[newkey] = d
 
 
@@ -425,8 +431,10 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
             # print "doing freqs between ", f1, "and", f2
 
             # Loop over adjacent sets:
-            # ff = np.arange(0, (f2 - f1), 1)  # This version for uniform in frequency
-            ff = np.arange(0, n_sub_freqs, 1)  # This version for constant steps per pair
+            if n_sub_freqs == 0:
+                ff = np.arange(0, (f2 - f1), 1)  # This version for uniform in frequency
+            else:
+                ff = np.arange(0, n_sub_freqs, 1)  # This version for constant steps per pair
             nf = len(ff)
 
             fine_freqs = f1 + (f2 - f1)*ff/nf
@@ -481,13 +489,15 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                     stixP_pts  = np.hstack([ray_data[kk]['stixP'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
                     mu_pts  = np.hstack([ray_data[kk]['mu'][t_ind:t_ind+2]  for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
                     psi_pts = np.hstack([ray_data[kk]['psi'][t_ind:t_ind+2] for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
+                    vel_pts = np.hstack([ray_data[kk]['vgrel'][t_ind:t_ind+2] for kk in [k0, k1, k2, k3, k4, k5, k6, k7]])
 
                     stixR_interp = interpolate.NearestNDInterpolator(points_4d.T, stixR_pts)
                     stixL_interp = interpolate.NearestNDInterpolator(points_4d.T, stixL_pts)
                     stixP_interp = interpolate.NearestNDInterpolator(points_4d.T, stixP_pts)
                     mu_interp    = interpolate.NearestNDInterpolator(points_4d.T, mu_pts)
                     psi_interp   = interpolate.NearestNDInterpolator(points_4d.T, psi_pts)
-                    
+                    vel_interp   = interpolate.NearestNDInterpolator(points_4d.T, vel_pts)
+
                     # tri = Delaunay(points_2d.T, qhull_options='QJ')
                     tri = Delaunay(points_4d.T, qhull_options='QJ')
                     
@@ -525,10 +535,13 @@ def find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/gcpm_kp0
                                 psi = psi_interp(cur_pos)[0]
                                 mu = mu_interp(cur_pos)[0]
                                 damp = damp_interp(cur_pos)[0]
+                                vel = vel_interp(cur_pos)[0]*C
 
+                                #              [unitless][m/s][1/m^3] ~ 1/m^2/sec. Multiply by total input energy.
                                 if (damp > DAMP_THRESHOLD):
+                                    pwr_scale_factor = damp*vel/voxel_vol
                                     tt = np.round(100.*t_ind*dt)/100.
-                                    fieldlines[fl_ind]['crossings'][hl].append((tt, fine_freqs[hf], damp/voxel_vol, psi, mu, damp))
+                                    fieldlines[fl_ind]['crossings'][hl].append((tt, fine_freqs[hf], pwr_scale_factor, psi, mu, damp, vel))
                                     # fl['crossings'].append([fl['L'], fl['lat'][hl], t_ind*dt, fine_freqs[hf]])
                             #         # Stix parameters are functions of the background medium only,
                             #         # but we'll average them because we're grabbing them from the
@@ -583,15 +596,15 @@ if __name__ == "__main__":
                         format='[%(levelname)s] %(message)s')  
 
 
-    data = find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/mode6/kp0/',
-                            tmax = 10,
-                            dt = 0.05,
+    data = find_crossings(ray_dir='/shared/users/asousa/WIPP/rays/2d/nightside/ngo_v2/',
+                            tmax = 20,
+                            dt = 0.02,
                             lat_low = 31,
                             lat_step_size=1,
                             f_low = 200, f_hi = 230,
                             n_sub_freqs = 20,
-                            Llims = [1.2,8],
-                            L_step = 0.1,
+                            Llims = [2,4],
+                            L_step = 0.5,
                             dlat_fieldline = 1
                             )
 
