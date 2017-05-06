@@ -327,7 +327,7 @@ def calc_scattering_MPI(crossing_dir=None,
                 print np.shape(tmp_N);
                 # Loop over fieldlines
                 for fl_ind, fl in enumerate(tmp['fieldlines']):
-                    print "L: ", fl['L']
+                    # print "L: ", fl['L']
                     # print fl['hit_counts']
                     hitlist = np.where(fl['hit_counts'] > 0)[0]  # indexes of lats worth doing
                     # print "hits at %d of %d lats"%(len(hitlist), len(fl['hit_counts']))
@@ -460,16 +460,20 @@ def calc_scattering_MPI(crossing_dir=None,
 
 
 if __name__ == "__main__":
+
+    # Ivec = pow(-1000, -2000, -10000, -20000, -50000, -100000, -200000)
+
+    # for I0 in Ivec:
     calc_scattering_MPI(
-        crossing_dir ='/shared/users/asousa/WIPP/WIPP_stencils/outputs/crossings6/nightside/ngo_v2/python_data',
+        crossing_dir ='/shared/users/asousa/WIPP/WIPP_stencils/outputs/crossings7/nightside/ngo_v2/python_data',
         power_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/input_energies/',
-        out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_debug_again/',
+        out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/ngo_debug_again3/',
         flash_lat=35,
         mlt = 0,
-        max_dist=120,
+        max_dist=200,
         I0=-10000,
         d_lon = 1,
-        num_lons=2,
+        num_lons=1,
         f_low=200, f_hi=30000,
         itime = datetime.datetime(2010,1,1,0,0,0))
 
