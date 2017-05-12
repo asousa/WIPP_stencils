@@ -68,6 +68,19 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
   // Output space
   double(*phi_out_ptr)[NUM_E][NUM_T] = reinterpret_cast<double(*)[NUM_E][NUM_T]>(phi_out);
 
+
+  // double(*Jdd)[n_JL][n_JE] = reinterpret_cast<double(*)[n_JL][n_JE]>(J);
+
+  // for (int row=0; row < n_JL; ++row) {
+  //   cout << row << ": ";
+  //   for (int col=0; col < n_JE; ++col) {
+  //     cout << (*Jdd)[row][col] << " ";
+  //   }
+  //   cout << endl;
+  // }
+
+
+
   
   // // Echo the input parameters:
   // cout << "--------- flux methods ---------" << endl;
@@ -126,6 +139,8 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
         b = Jdiff[ei]*1000.;
         if (isnan(b)) {
             cout << "b isnan: " << b << " ei: " << ei << endl;
+            cout << "Jdiff :" << Jdiff[ei-1] << ", " << Jdiff[ei] << ", " << Jdiff[ei + 1] << endl;
+            cout << "L_sh: " << L_sh << " alpha_eq: " << alpha_eq << "Ein: " << E_tot_arr[ei] << endl;
          }
         break;
       case 1:
@@ -221,9 +236,8 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
         // " crunch= " << crunch <<
         // " I= " << I << endl;  
         nancounter=nancounter + 1;
-        printf("Total NaNs: %i\n",nancounter);
+        
       };
-
       (*phi_out_ptr)[ei][ti] = Phi_p;
 
         // nout=fwrite(&Phi_p, sizeof(double), 1, phiPtr);
@@ -231,7 +245,9 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
       
     } // for(ti ... )
   } // for(ei ... )
-  
+
+  // printf("Total NaNsies: %i\n",nancounter);
+
   // fclose(phiPtr);
   // fclose(alphaPtr);
 
@@ -259,35 +275,59 @@ void calc_flux(double *arr, flux_params params, double* J, double L_sh, double *
  */
 double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, double L_sh)
 {
-  int row, i, topCol, botE;
+  int row, i, botE;  //  topCol,
+  int col;
   double J1, J2, I, x1, x2, y1, y2, m, c, x_ext, y_ext, J_ext;
 
   double(*J)[n_JL][n_JE] = reinterpret_cast<double(*)[n_JL][n_JE]>(Jp);
 
+  // //print energies:
+  // cout << "Energies: " << endl;
+  // for (int k=0; k<n_JE; ++k) {
+  //   cout << (*J)[0][k+1] << " ";
+  // }
+  // cout << endl << " L-shells: " << endl;
+  // for (int k=0; k<n_JL; ++k) {
+  //   cout << (*J)[k+1][0] << " ";
+  // }
+  // cout << endl;
+  // row = (int)floor((L_sh + 0.11 - (*J)[1][0])/0.1); // to make sure! 
+    // row = (int)floor((L_sh - (*J)[1][0])*10.);
 
-
-  row = (int)floor((L_sh + 0.11 - (*J)[1][0])/0.1); // to make sure! 
-  
-  // if(  fabs((double)J[row][0]-L_TARG) > 1e-3   ) 
-  //   printf("\nL-shell not matching data\n\a");
-
-  I = PI * cos(alpha_lc) * (PI - 2*alpha_lc);
-
-  // Find column corresponding to highest energy value
-  for(i=0; i<100; i++) {
-    if((*J)[0][i+1] < 0.01) { 
-      topCol = i; 
-      break; 
+  // find row:
+  for (int i=1; i < n_JL; ++i) {
+    if ((*J)[i][0] > L_sh) {
+      row =i;
+      break;
     }
+    // row = n_JL;  // hit maximum
   }
 
+  // find col:
+  for (int i=1; i < n_JE; ++i) {
+    if ((*J)[0][i]*1e6 > E) {
+      col =i;
+      break;
+    }
+    // col = n_JE; // Hit maximum
+  }
+
+  // cout << "row = " << row << ", col = " << col << endl;
+  I = PI * cos(alpha_lc) * (PI - 2*alpha_lc);
+
+  // // Find column corresponding to highest energy value
+  // for(i=0; i<100; i++) {
+  //   if((*J)[0][i+1] < 0.01) { 
+  //     topCol = i; 
+  //     break; 
+  //   }
+  // }
 
 
-  // Case 1. E < 100 keV
+  // Case 1. E < E[0]; extrapolate down
   // -------------------
-
-  if( E <= 1e5 ) {
- 
+  if (col <= 1) {
+    // cout << "case 1" << endl;
     // diff flux @ 100 keV and 200 keV
     J1 = 1e-6*fabs( (*J)[row][2] - (*J)[row][1]) / ((*J)[0][2] - (*J)[0][1]); 
     J2 = ((1e-6*fabs((*J)[row][3] - (*J)[row][2]) / ((*J)[0][3] - (*J)[0][2])) 
@@ -307,32 +347,33 @@ double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, doub
     y_ext = m*x_ext + c;
     J_ext = pow(10, y_ext);
 
+    if (isnan(J_ext)) {
+      cout << "section 1 : ";
+      cout << "J_ext is nan at: " << row << "," << E << endl;
+    }
     return (J_ext/I);
 
-  }
+  } 
 
+  // Case 2. E > E[n_JE]; extrapolate up
+  if (col >= n_JE) {
 
-  
-
-  // Case 2. E > 7 MeV
-  // -----------------
-
-  if( E >= 7e6 ) {
-  
+    // cout << "case 2" << endl;
+    // cout << "col: " << col << endl;
     // If flux at 7 Mev = 0, flux above it is zero too
-    if( (*J)[row][topCol]==0 )  return 0;
+    if( (*J)[row][n_JE]==0)  return 0;
 
     // Otherwise need to extrapolate as in case 1.
     // diff flux @ 6.5 MeV and 7 MeV
-    J2 = 1e-6*fabs( (*J)[row][topCol] - (*J)[row][topCol-1] ) 
-      / (J[0][topCol] - J[0][topCol-1]); 
+    J2 = 1e-6*fabs( (*J)[row][col] - (*J)[row][col-1] ) 
+      / ((*J)[0][col] - (*J)[0][col-1]); 
 
-    J1 = ((1e-6*fabs( J[row][topCol-1] - J[row][topCol-2]) / 
-       (J[0][topCol-1] - J[0][topCol-2]) ) + J2 )/2; // cdiff
+    J1 = ((1e-6*fabs( J[row][col-1] - J[row][col-2]) / 
+       ((*J)[0][col-1] - (*J)[0][col-2]) ) + J2 )/2; // cdiff
 
     // do extrapolation in log-log space for best fit 
-    x1 = log10( (*J)[0][topCol-1]*1e6 );
-    x2 = log10( (*J)[0][topCol]*1e6 );
+    x1 = log10( (*J)[0][col-1]*1e6 );
+    x2 = log10( (*J)[0][col]*1e6 );
     y1 = log10( J1 );
     y2 = log10( J2 );
 
@@ -345,22 +386,30 @@ double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, doub
 
     if(J_ext < 1e-10 ) J_ext = 0.0;
 
+    // cout << " x1: " << x1;
+    // cout << " x2: " << x2;
+    // cout << " y1: " << y1;
+    // cout << " y2: " << y2;
+    // cout << " m: " << m;
+    // cout << " c: " << c;
+    // cout << " x_ext: " << x_ext;
+    // cout << " y_ext: " << y_ext;
+    // cout << " J_ext: " << J_ext << endl;
+
+
     return (J_ext/I);
   }
 
-
-  // Case 3. 100 keV < E < 7 MeV
-  if( E<7e6 && E>1e5 ) {
-
-
+  // Case 3. In band; interpolate.
+    // cout << "case 3" << endl;
     // Find column corresponding lower energy value
-    for(i=1; i<100; i++) {
-      if( ((*J)[0][i+1]*1e6) > E ) { 
-    botE = i; 
-    break; 
-      }
-    }
-
+    // for(i=1; i<100; i++) {
+    //   if( ((*J)[0][i+1]*1e6) > E ) { 
+    // botE = i; 
+    // break; 
+    //   }
+    // }
+    botE = col - 1;
 
     // central diff flux @ lower and higher energies
     J1 = ( (1e-6 * fabs( (*J)[row][botE] - (*J)[row][botE-1] )
@@ -377,7 +426,7 @@ double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, doub
       J1 =  (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
           / ( (*J)[0][botE+1] - (*J)[0][botE] ) );
     
-    if(botE == (topCol-1))
+    if(botE == (n_JE-2))
       J2 = (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
         / ( (*J)[0][botE+1] - (*J)[0][botE] ) );
     
@@ -412,10 +461,165 @@ double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, doub
     y_ext = m*x_ext + c;
     J_ext = pow(10, y_ext);
 
+    if (isnan(J_ext)) {
+      cout << "section 3 : ";
+      cout << "J_ext is nan at: " << row << ", "  << E << endl;
+      cout <<" botE: " << botE << endl;
+      cout << x1 << ", " << x2 << ", " << y1 << ", " << y2 << ", ";
+      cout << m << ", " << c << ", " << x_ext << ", " << y_ext << ", " << J_ext << endl;
+    }
+
     return (J_ext/I);
   }
 
-}
+
+
+
+
+  // // // Case 1. E < 100 keV
+  // // // -------------------
+
+  // // if( E <= 1e5 ) {
+ 
+  // //   // diff flux @ 100 keV and 200 keV
+  // //   J1 = 1e-6*fabs( (*J)[row][2] - (*J)[row][1]) / ((*J)[0][2] - (*J)[0][1]); 
+  // //   J2 = ((1e-6*fabs((*J)[row][3] - (*J)[row][2]) / ((*J)[0][3] - (*J)[0][2])) 
+  // //     + J1 )/2; // central difference
+
+  // //   // do extrapolation in log-log space for best fit 
+  // //   x1 = log10( (*J)[0][1]*1e6 );
+  // //   x2 = log10( (*J)[0][2]*1e6 );
+  // //   y1 = log10( J1 );
+  // //   y2 = log10( J2 );
+
+  // //   m = (y2-y1)/(x2-x1);            // gradient of line
+  // //   c = (y1*x2 - y2*x1)/(x2-x1) ;   // offset of line, i.e.
+    
+  // //   // y = m*x + c
+  // //   x_ext = log10( E );
+  // //   y_ext = m*x_ext + c;
+  // //   J_ext = pow(10, y_ext);
+
+  // //   // if (isnan(J_ext)) {
+  // //   //   cout << "section 1 : ";
+  // //   //   cout << "J_ext is nan at: " << row << "," << E << endl;
+  // //   // }
+  // //   return (J_ext/I);
+
+  // // }
+
+
+  
+
+  // // Case 2. E > 7 MeV
+  // // -----------------
+
+  // if( E >= 7e6 ) {
+  
+  //   // If flux at 7 Mev = 0, flux above it is zero too
+  //   if( (*J)[row][topCol]==0 )  return 0;
+
+  //   // Otherwise need to extrapolate as in case 1.
+  //   // diff flux @ 6.5 MeV and 7 MeV
+  //   J2 = 1e-6*fabs( (*J)[row][topCol] - (*J)[row][topCol-1] ) 
+  //     / ((*J)[0][topCol] - (*J)[0][topCol-1]); 
+
+  //   J1 = ((1e-6*fabs( J[row][topCol-1] - J[row][topCol-2]) / 
+  //      ((*J)[0][topCol-1] - (*J)[0][topCol-2]) ) + J2 )/2; // cdiff
+
+  //   // do extrapolation in log-log space for best fit 
+  //   x1 = log10( (*J)[0][topCol-1]*1e6 );
+  //   x2 = log10( (*J)[0][topCol]*1e6 );
+  //   y1 = log10( J1 );
+  //   y2 = log10( J2 );
+
+  //   m = (y2-y1)/(x2-x1);            // gradient of line
+  //   c = (y1*x2 - y2*x1)/(x2-x1) ;   // offset of line, i.e.
+  //                   // y = m*x + c
+  //   x_ext = log10( E );
+  //   y_ext = m*x_ext + c;
+  //   J_ext = pow(10, y_ext);
+
+  //   if(J_ext < 1e-10 ) J_ext = 0.0;
+
+  //   return (J_ext/I);
+  // }
+
+
+  // // Case 3. 100 keV < E < 7 MeV
+  // if( E<7e6 && E>1e5 ) {
+
+
+  //   // Find column corresponding lower energy value
+  //   for(i=1; i<100; i++) {
+  //     if( ((*J)[0][i+1]*1e6) > E ) { 
+  //   botE = i; 
+  //   break; 
+  //     }
+  //   }
+
+
+  //   // central diff flux @ lower and higher energies
+  //   J1 = ( (1e-6 * fabs( (*J)[row][botE] - (*J)[row][botE-1] )
+  //       / ( (*J)[0][botE] - (*J)[0][botE-1] ) ) + 
+  //      (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
+  //       / ( (*J)[0][botE+1] - (*J)[0][botE] ) )  ) / 2;
+
+  //   J2 = ( (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
+  //       / ( (*J)[0][botE+1] - (*J)[0][botE] ) ) + 
+  //      (1e-6 * fabs( (*J)[row][botE+2] - (*J)[row][botE+1] )
+  //       / ( (*J)[0][botE+2] - (*J)[0][botE+1] ) )  ) / 2;
+
+  //   if(botE == 1)
+  //     J1 =  (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
+  //         / ( (*J)[0][botE+1] - (*J)[0][botE] ) );
+    
+  //   if(botE == (topCol-1))
+  //     J2 = (1e-6 * fabs( (*J)[row][botE+1] - (*J)[row][botE] )
+  //       / ( (*J)[0][botE+1] - (*J)[0][botE] ) );
+    
+
+
+
+  //   // If J1 = J2 = 0, interpolated value also 0
+  //   if( J1==0 && J2==0 ) return 0;
+
+
+
+  //   // If only J2 = 0, do linear interpolation
+  //   if( J2 == 0 ) {
+  //     J_ext = J1*( ( (*J)[0][botE+1]-(E*1e-6) )/
+  //          ( (*J)[0][botE+1] - (*J)[0][botE] ) );
+  //     return (J_ext/I);
+  //   }
+
+
+
+  //   // Otherwise interpolate as in case 1 (log-log space)
+
+  //   x1 = log10( (*J)[0][botE]*1e6 );
+  //   x2 = log10( (*J)[0][botE+1]*1e6 );
+  //   y1 = log10( J1 );
+  //   y2 = log10( J2 );
+
+  //   m = (y2-y1)/(x2-x1);        // gradient of line
+  //   c = (y1*x2 - y2*x1)/(x2-x1) ;   // offset of line, i.e.
+  //                   // y = m*x + c
+  //   x_ext = log10( E );
+  //   y_ext = m*x_ext + c;
+  //   J_ext = pow(10, y_ext);
+
+  //   if (isnan(J_ext)) {
+  //     cout << "section 4 : ";
+  //     cout << "J_ext is nan at: " << row << ", "  << E << endl;
+  //     cout << x1 << ", " << x2 << ", " << y1 << ", " << y2 << ", ";
+  //     cout << m << ", " << c << ", " << x_ext << ", " << y_ext << ", " << J_ext << endl;
+  //   }
+
+  //   return (J_ext/I);
+  // }
+
+// }
 
 
 // -----------------------------------------------

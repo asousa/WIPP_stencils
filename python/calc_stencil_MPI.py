@@ -56,7 +56,19 @@ class scattering_params(ct.Structure):
                 ('E_BANDWIDTH', ct.c_double),
                 ('SCATTERING_RES_MODES', ct.c_int),
                 ('num_lons', ct.c_int)]
-                # ('v_tot_arr', ct.POINTER(ct.c_double)),
+
+class flux_params(ct.Structure):
+    _fields_ = [('NUM_E', ct.c_size_t),
+                ('NUM_T', ct.c_size_t),
+                ('dt',    ct.c_double),
+                ('DE_EXP',ct.c_double),
+                ('E_EXP_BOT', ct.c_double),
+                ('E_EXP_TOP', ct.c_double),
+                ('alpha_dist', ct.c_int),
+                ('flux_dist', ct.c_int),
+                ('n_JL', ct.c_size_t),
+                ('n_JE', ct.c_size_t)
+                ]
 
 def haversine_np(lon1, lat1, lon2, lat2):
     """
@@ -79,9 +91,11 @@ def haversine_np(lon1, lat1, lon2, lat2):
 
 
 
-def calc_scattering_MPI(crossing_dir=None,
+def calc_stencil_MPI(crossing_dir=None,
                     power_dir    = None,
                     out_dir = None,
+                    alpha_dist = None,
+                    flux_dist = None,
                     flash_lat=None,
                     mlt = None,
                     max_dist=None,
@@ -120,11 +134,9 @@ def calc_scattering_MPI(crossing_dir=None,
     lib_path ='/shared/users/asousa/WIPP/WIPP_stencils/c/libwipp.so'
     ct.cdll.LoadLibrary(lib_path)
     lib = ct.CDLL(lib_path)
-    # The function
-    calc_scattering_c = lib.calc_scattering
-
+    
     # Define arguments -- equivalent to the arguments in WIPP_stencil.h
-    # ()
+    calc_scattering_c = lib.calc_scattering
     calc_scattering_c.restype = None
     calc_scattering_c.argtypes =    [ndpointer(ct.c_double, flags='C_CONTIGUOUS'),
                                      ct.c_size_t,
@@ -132,8 +144,15 @@ def calc_scattering_MPI(crossing_dir=None,
                                      ct.Structure, ct.Structure,
                                      ndpointer(ct.c_double, flags="C_CONTIGUOUS"),
                                      ndpointer(ct.c_double, flags="C_CONTIGUOUS")]
-
-
+    
+    # Define arguments -- equivalent to the arguments in WIPP_stencil.h
+    calc_flux_c = lib.calc_flux
+    calc_flux_c.restype = None
+    calc_flux_c.argtypes =          [ndpointer(ct.c_double,flags='C_CONTIGUOUS'),
+                                    ct.Structure,
+                                    ndpointer(ct.c_double,flags='C_CONTIGUOUS'),
+                                    ct.c_double,
+                                    ndpointer(ct.c_double,flags='C_CONTIGUOUS')]
 
 
     if rank == 0:
@@ -305,7 +324,7 @@ def calc_scattering_MPI(crossing_dir=None,
                 # inp_pwr = np.sum(pwr_db[pwr_key][0:4])
                 # inp_pwrs = np.asarray(pwr_db[pwr_key])*pow(np.abs(I0)/10000., 2)  # rescale to new I0
 
-                print "input powers: ", inp_pwrs
+                # print "input powers: ", inp_pwrs
 
                 # print np.shape(inp_pwrs)
                 # inp_pwr = pwr_db[pwr_key][0]*pow(np.abs(I0)/10000., 2)  # rescale to new I0
@@ -368,7 +387,7 @@ def calc_scattering_MPI(crossing_dir=None,
 
     if rank == 0:
         # And done -- save it.
-        print "Saving..."
+        print "Saving scattering file..."
         # (this version for Python, since pickle is a shit about ctypes structures)
         pyparams = dict()
         pyparams['Emin'] = Emin
@@ -380,100 +399,106 @@ def calc_scattering_MPI(crossing_dir=None,
         pyparams['tvec'] = time
 
 
-
-        # for outlon in range(num_lons):
-
-        #     outfile = os.path.join(out_dir,'scattering_inlat_%d_outlon_%d.pklz'%(flash_lat, outlon))
-        #     outdict = dict()
-        #     outdict['da_N'] = da_N[:,outlon,:,:]
-        #     outdict['da_S'] = da_S[:,outlon,:,:]
-        #     outdict['lon_ind'] = outlon
-        #     outdict['params'] = pyparams
-
-        #     with gzip.open(outfile,'wb') as file:
-        #         pickle.dump(outdict,file)
-
-
-
-
+        # Save full spectra along center longitude only
         outfile = os.path.join(out_dir,'scattering_inlat_%d.pklz'%flash_lat)
         outdict = dict()
-        outdict['da_N'] = da_N
-        outdict['da_S'] = da_S
+        outdict['da_N'] = da_N[:,0,:,:] 
+        outdict['da_S'] = da_S[:,0,:,:]
         outdict['params'] = pyparams
 
         with gzip.open(outfile,'wb') as file:
             pickle.dump(outdict,file)
 
 
+        # --------------------------------------------
+        # Flux calculation
+        # --------------------------------------------
+        flux_root = '/shared/users/asousa/WIPP/WIPP_stencils/data/'
+
+        for fluxfile_prefix in ['AE8MIN','AE8MAX']:
+            fluxfile = os.path.join(flux_root,'%s_integral_flux.dat'%fluxfile_prefix)
+            print "Starting flux calculation"
+            Jdata = np.loadtxt(fluxfile)
+
+            JL = Jdata[1:,0]  # L-shells in J-file
+            JE = Jdata[0,1:]  # Energies in J-file
+
+            f_params = flux_params()
+            f_params.NUM_E          = NUM_E
+            f_params.NUM_T          = len(time)
+            f_params.dt             = time[1] - time[0]
+            f_params.DE_EXP         = np.log10(E_tot_arr[1]) - np.log10(E_tot_arr[0])
+            f_params.E_EXP_BOT      = np.log10(Emin)
+            f_params.E_EXP_TOP      = np.log10(Emax)
+            f_params.alpha_dist     = alpha_dist
+            f_params.flux_dist      = flux_dist
+            f_params.n_JL           = np.shape(Jdata)[0]
+            f_params.n_JE           = np.shape(Jdata)[1]
+            
+            pyparams['n_JL'] = np.shape(Jdata)[0]
+            pyparams['n_JE'] = np.shape(Jdata)[1]
+            pyparams['DE_EXP'] = np.log10(pyparams['E_tot_arr'][1]) - np.log10(pyparams['E_tot_arr'][0])
+            pyparams['E_EXP_BOT'] = np.log10(pyparams['Emin'])
+            pyparams['E_EXP_TOP'] = np.log10(pyparams['Emax'])
+            pyparams['alpha_dist'] = alpha_dist
+            pyparams['flux_dist']  = flux_dist
+            pyparams['fluxfile'] = fluxfile
+            pyparams['dt'] = pyparams['tvec'][1] - pyparams['tvec'][0]
 
 
+            phi_N = np.zeros_like(da_N)
+            phi_S = np.zeros_like(da_S)
+
+            for L_ind, L in enumerate(pyparams['Lshells']):
+                for lon_ind in range(np.shape(da_N)[1]):
+                    print "Calculating at ", L, lon_ind
+                    calc_flux_c(da_N[L_ind, lon_ind, :, :], f_params, Jdata, L, phi_N[L_ind, lon_ind, :, :])
+                    calc_flux_c(da_S[L_ind, lon_ind, :, :], f_params, Jdata, L, phi_S[L_ind, lon_ind, :, :])
+
+            print "saving reduced phi file..."
+            outfile = 'phi_inlat_%d_%s.pklz'%(flash_lat, fluxfile_prefix)
+            outdict = dict()
+            # Summed over time:
+            outdict['phi_N_sum'] = np.sum(phi_N, axis=-1)
+            outdict['phi_S_sum'] = np.sum(phi_S, axis=-1)
+
+            # full-resolution, center longitude only
+            outdict['phi_N_full'] = phi_N[:,0,:,:]
+            outdict['phi_S_full'] = phi_S[:,0,:,:]
+            outdict['params'] = pyparams
 
 
+            with gzip.open(outfile,'wb') as file:
+                pickle.dump(outdict,file)
 
-
-
-
-
-
-    # for lat1, lat2 in lat_pairs:
-    #     center_lat = (lat1 + lat2)/2.
-
-    #     for f1, f2 in freq_pairs:
-    #         center_freq = (f1 + f2)/2.
-    #         pwr_key = (center_freq, center_lat)
-    #         if pwr_key not in pwr_db:
-    #             print "failed to load input power"
-    #         else:
-
-    #             # Get input power
-    #             # inp_pwr = pwr_db[pwr_key][lon_offset]
-    #             # Temporary band aid: Crossing detection was done with 1-deg bins,
-    #             # input power was calculated with 0.25-deg bins.        
-    #             inp_pwr = np.sum(pwr_db[pwr_key][0:4])        
-    #             # Load crossing file
-    #             crossing_fname = os.path.join(crossing_dir,'crossing_log_lat_%d-%d_f_%d-%d.pklz'%(
-    #                 lat1, lat2, f1, f2))
-    #             print "loading ", crossing_fname
-    #             with gzip.open(crossing_fname, 'rb') as file:
-    #                 tmp = pickle.load(file)
-
-    #             crossings = tmp['fieldlines']
-
-    #             tmp_N, tmp_S = calc_pitch_angle_change(inp_pwr, crossings, params)
-    #             da_N += tmp_N
-    #             da_S += tmp_S
-    #             print np.max(da_N), np.max(da_S)
-
-    # # And done -- save it.
-    # print "Saving..."
-    # outfile = os.path.join(out_dir,'scattering_inlat_%d.pklz'%flash_lat)
-    # outdict = dict()
-    # outdict['da_N'] = da_N
-    # outdict['da_S'] = da_S
-    # outdict['params'] = params
-
-    # with gzip.open(outfile,'wb') as file:
-    #     pickle.dump(outdict,file)
-
-    # print "Done"
 
 
 if __name__ == "__main__":
 
-    # Ivec = pow(-1000, -2000, -10000, -20000, -50000, -100000, -200000)
+    rootdir ='/shared/users/asousa/WIPP/WIPP_stencils/'
+    # crossing_dir = os.path.join(rootdir,'outputs','crossings9_quick','nightside','ngo_v2','python_data')
+    crossing_dir = os.path.join(rootdir,'outputs','crossings_50f','nightside','ngo_v2','python_data')
+    power_dir    = os.path.join(rootdir,'outputs','input_energies')
+    out_dir      = os.path.join(rootdir,'outputs','stencils','nightside','stencil_testing')
+
+    # fluxfile = '/shared/users/asousa/WIPP/WIPP_stencils/data/AE8MAX_integral_flux.dat'
+    alpha_dist = 0  # 0: Sine / ramp  1: Square
+    flux_dist = 0   # 0: fluxfile  1: Suprathermal  2: Flat
 
     # for I0 in Ivec:
-    calc_scattering_MPI(
-        crossing_dir ='/shared/users/asousa/WIPP/WIPP_stencils/outputs/crossings7/nightside/ngo_v2/python_data',
-        power_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/input_energies/',
-        out_dir = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/scattering/nightside/stencil_test/',
+    calc_stencil_MPI(
+        crossing_dir = crossing_dir,
+        power_dir = power_dir,
+        out_dir = out_dir,
+        # fluxfile = fluxfile,
+        alpha_dist = alpha_dist,
+        flux_dist = flux_dist,
         flash_lat=35,
         mlt = 0,
-        max_dist=200,
+        max_dist=500,
         I0=-10000,
         d_lon = 1,
-        num_lons=10,
+        num_lons=20,
         f_low=200, f_hi=30000,
         itime = datetime.datetime(2010,1,1,0,0,0))
 

@@ -55,35 +55,31 @@ freqs = np.round(pow(10, flogs)/10.)*10
 freq_pairs = zip(freqs[0:], freqs[1:])
 
 # freq_pairs = freq_pairs[0:1]
-Llims = [2,4] #[1.2,7]
-Lstep = 0.5
+Llims = [1.2,7]
+Lstep = 0.1
 out_Lsh = np.arange(Llims[0], Llims[1], Lstep)
 out_lat = np.round(10.0*np.arccos(np.sqrt(1./out_Lsh))*R2D)/10.0
 
 # out_lon = [0]
 
-offset_lon_spacing = 1
+offset_lon_spacing = 1 # Spacing between longitudes
 
-dlat_fieldline = 0.25 #1     # degree spacing between EA segments
+dlat_fieldline = 0.5 #0.25 #1     # degree spacing between EA segments
 model_number = 0        # b-field model (0 = dipole, 1 = IGRF)
-num_freq_steps = 0      # number of interpolating steps between 
+num_freq_steps = 50      # number of interpolating steps between 
                         # each guide frequency.
                         # 0 does 1hz increments.
 damp_threshold = 0.1 # Value below which we ignore crossings
 
-# vec_ind = 0     # Which set of default params to use for the gcpm model
-# Mean parameter vals for set Kp:
 Kpvec = ['ngo_v2']
 
 nightday = 'nightside'
 
 
-
-
 # ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
 ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/'%nightday
 
-output_directory_root    = os.path.join(project_root, "outputs", "crossings8", nightday)
+output_directory_root    = os.path.join(project_root, "outputs", "crossings_50f", nightday)
 
 # ----------------------------------------------------------
 
