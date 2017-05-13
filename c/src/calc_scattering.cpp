@@ -224,7 +224,7 @@ void calc_scattering(double* crossings, size_t rows, double* inp_pwr, EA_args EA
                     if(mres==0) {
                         direction = -kz/fabs(kz);
                     } else {
-                        direction = kz/fabs(kz) * mres/fabs(mres) ;
+                        direction = (kz/fabs(kz)) * (mres/fabs(mres)) ;
                     }
 
                     v_para_res = ( direction*sqrt(t1 + t2*t3) - w*kz ) / t3;
@@ -357,8 +357,10 @@ void calc_scattering(double* crossings, size_t rows, double* inp_pwr, EA_args EA
                         if (timei < NUM_T) {
                             // Save it!
                             if (direction > 0) {
+                                // cout <<"N" << endl;
                                 (*daN_ptr)[lon_ind][e_toti][timei] += dalpha_eq*dalpha_eq;
                             } else {
+                                // cout <<"S" << endl;
                                 (*daS_ptr)[lon_ind][e_toti][timei] += dalpha_eq*dalpha_eq;
                             }
                         } else {

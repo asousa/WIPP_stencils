@@ -64,9 +64,9 @@ out_lat = np.round(10.0*np.arccos(np.sqrt(1./out_Lsh))*R2D)/10.0
 
 offset_lon_spacing = 1 # Spacing between longitudes
 
-dlat_fieldline = 0.5 #0.25 #1     # degree spacing between EA segments
+dlat_fieldline = 1 #0.25 #1     # degree spacing between EA segments
 model_number = 0        # b-field model (0 = dipole, 1 = IGRF)
-num_freq_steps = 50      # number of interpolating steps between 
+num_freq_steps = 20      # number of interpolating steps between 
                         # each guide frequency.
                         # 0 does 1hz increments.
 damp_threshold = 0.1 # Value below which we ignore crossings
@@ -79,7 +79,7 @@ nightday = 'nightside'
 # ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
 ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/'%nightday
 
-output_directory_root    = os.path.join(project_root, "outputs", "crossings_50f", nightday)
+output_directory_root    = os.path.join(project_root, "outputs", "crossings_20f", nightday)
 
 # ----------------------------------------------------------
 

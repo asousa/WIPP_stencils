@@ -278,10 +278,10 @@ def calc_stencil_MPI(crossing_dir=None,
 
 
     # print "node ", rank, jobs
-
-    recv_buffer = np.zeros(buffer_dims)
-    send_buffer = np.zeros(buffer_dims)
-
+    # Passing entries per fieldline now, instead of as one whole chunk.
+    recv_buffer = np.zeros([2, num_lons, len(E_tot_arr), len(time) + 1])
+    send_buffer = np.zeros([2, num_lons, len(E_tot_arr), len(time) + 1])
+    status = MPI.Status()
     # Set root node up to receive:
     if rank == 0:   
         print "nProcs: ", nProcs
@@ -292,13 +292,17 @@ def calc_stencil_MPI(crossing_dir=None,
         da_S = np.zeros_like(da_N) 
         received_count = 0
 
-        for i in range(len(jobs)):
-            comm.Recv(recv_buffer, source=MPI.ANY_SOURCE)
-            da_N += recv_buffer[0]
-            da_S += recv_buffer[1]
+        for i in range(len(jobs)*len(Lshells)):
+            comm.Recv(recv_buffer, source=MPI.ANY_SOURCE, status=status)
+            fl_ind = status.Get_tag()
+            # print "received fl_ind ", fl_ind
+            # print "Receiving: N: (", np.max(recv_buffer[0]), np.min(recv_buffer[0]), "), S: (", np.max(recv_buffer[1]), np.min(recv_buffer[1]), ")"
+
+            da_N[fl_ind, :,:,:] += recv_buffer[0,:,:,:]
+            da_S[fl_ind, :,:,:] += recv_buffer[1,:,:,:]
             received_count += 1
-            print "finished %d/%d"%(received_count, len(jobs))
-            print np.max(da_N), np.max(da_S)
+            print "finished %d/%d"%(received_count, len(jobs)*len(Lshells))
+            print "N: (", np.max(da_N), np.min(da_N), "), S: (", np.max(da_S), np.min(da_S), ")"
     else:
         # Queue up the workers
         if ((rank -1) < len(partitioned_jobs)):
@@ -340,12 +344,16 @@ def calc_stencil_MPI(crossing_dir=None,
                 # # Calc scattering
                 # tmp_N, tmp_S = calc_pitch_angle_change(inp_pwr, crossings, params)
 
-                tmp_N = np.zeros(buffer_dims[1:])
-                tmp_S = np.zeros(buffer_dims[1:])
+                # tmp_N = np.zeros(buffer_dims[1:])
+                # tmp_S = np.zeros(buffer_dims[1:])
                 
-                print np.shape(tmp_N);
+                # print np.shape(tmp_N);
                 # Loop over fieldlines
                 for fl_ind, fl in enumerate(tmp['fieldlines']):
+
+                    tmp_N = np.zeros(buffer_dims[2:])
+                    tmp_S = np.zeros(buffer_dims[2:])
+
                     # print "L: ", fl['L']
                     # print fl['hit_counts']
                     hitlist = np.where(fl['hit_counts'] > 0)[0]  # indexes of lats worth doing
@@ -373,14 +381,15 @@ def calc_stencil_MPI(crossing_dir=None,
                         
                         calc_scattering_c(crossing_list, np.shape(crossing_list)[0],
                                         inp_pwrs, EA, params,
-                                        tmp_N[fl_ind,:,:,:], tmp_S[fl_ind,:,:,:])
+                                        tmp_N, tmp_S)
 
+                                        # tmp_N[fl_ind,:,:,:], tmp_S[fl_ind,:,:,:])
+                    # print "Sending: N: (", np.max(tmp_N), np.min(tmp_N), "), S: (", np.max(tmp_S), np.min(tmp_S), ")"
                         # da_N[fl_ind,:,:] += tmpN
                         # da_S[fl_ind,:,:] += tmpS
-
-                # Send iiiiiiit
-                send_buffer[0:2] = np.array([tmp_N, tmp_S])
-                comm.Send(send_buffer, 0)
+                    # Send iiiiiiit
+                    send_buffer[0:2] = np.array([tmp_N, tmp_S])
+                    comm.Send(send_buffer, 0, tag=fl_ind)
         else:
             print "process ", rank, " idling"
     comm.Barrier()
@@ -477,7 +486,7 @@ if __name__ == "__main__":
 
     rootdir ='/shared/users/asousa/WIPP/WIPP_stencils/'
     # crossing_dir = os.path.join(rootdir,'outputs','crossings9_quick','nightside','ngo_v2','python_data')
-    crossing_dir = os.path.join(rootdir,'outputs','crossings_50f','nightside','ngo_v2','python_data')
+    crossing_dir = os.path.join(rootdir,'outputs','crossings_20f','nightside','ngo_v2','python_data')
     power_dir    = os.path.join(rootdir,'outputs','input_energies')
     out_dir      = os.path.join(rootdir,'outputs','stencils','nightside','stencil_testing')
 
@@ -495,10 +504,10 @@ if __name__ == "__main__":
         flux_dist = flux_dist,
         flash_lat=35,
         mlt = 0,
-        max_dist=500,
+        max_dist=200,
         I0=-10000,
         d_lon = 1,
-        num_lons=20,
+        num_lons=2,
         f_low=200, f_hi=30000,
         itime = datetime.datetime(2010,1,1,0,0,0))
 
