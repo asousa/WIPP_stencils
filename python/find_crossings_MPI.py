@@ -71,13 +71,14 @@ num_freq_steps = 20      # number of interpolating steps between
                         # 0 does 1hz increments.
 damp_threshold = 0.1 # Value below which we ignore crossings
 
-Kpvec = ['ngo_v2']
+# Kpvec = ['ngo_v2']
+Kpvec = ['kp0']
 
 nightday = 'nightside'
 
 
-# ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
-ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/'%nightday
+ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
+# ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/'%nightday
 
 output_directory_root    = os.path.join(project_root, "outputs", "crossings_20f", nightday)
 

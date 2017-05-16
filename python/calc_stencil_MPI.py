@@ -465,7 +465,7 @@ def calc_stencil_MPI(crossing_dir=None,
                     calc_flux_c(da_S[L_ind, lon_ind, :, :], f_params, Jdata, L, phi_S[L_ind, lon_ind, :, :])
 
             print "saving reduced phi file..."
-            outfile = 'phi_inlat_%d_%s.pklz'%(flash_lat, fluxfile_prefix)
+            outfile = os.path.join(out_dir,'phi_inlat_%d_%s.pklz'%(flash_lat, fluxfile_prefix))
             outdict = dict()
             # Summed over time:
             outdict['phi_N_sum'] = np.sum(phi_N, axis=-1)
@@ -494,21 +494,24 @@ if __name__ == "__main__":
     alpha_dist = 0  # 0: Sine / ramp  1: Square
     flux_dist = 0   # 0: fluxfile  1: Suprathermal  2: Flat
 
-    # for I0 in Ivec:
-    calc_stencil_MPI(
-        crossing_dir = crossing_dir,
-        power_dir = power_dir,
-        out_dir = out_dir,
-        # fluxfile = fluxfile,
-        alpha_dist = alpha_dist,
-        flux_dist = flux_dist,
-        flash_lat=35,
-        mlt = 0,
-        max_dist=200,
-        I0=-10000,
-        d_lon = 1,
-        num_lons=2,
-        f_low=200, f_hi=30000,
-        itime = datetime.datetime(2010,1,1,0,0,0))
+    inlats =[20, 30, 40, 50]
+
+    for inlat in inlats:
+        print "Doing flash lat at ", inlat, "deg"
+        calc_stencil_MPI(
+            crossing_dir = crossing_dir,
+            power_dir = power_dir,
+            out_dir = out_dir,
+            # fluxfile = fluxfile,
+            alpha_dist = alpha_dist,
+            flux_dist = flux_dist,
+            flash_lat=inlat,
+            mlt = 0,
+            max_dist=1000,
+            I0=-10000,
+            d_lon = 1,
+            num_lons=15,
+            f_low=200, f_hi=30000,
+            itime = datetime.datetime(2010,1,1,0,0,0))
 
 
