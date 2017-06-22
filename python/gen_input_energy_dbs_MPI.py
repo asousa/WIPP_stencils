@@ -36,10 +36,10 @@ R_E = 6371e3
 
 flash_lats = np.arange(15,55,1)
 flash_lat_inds = np.arange(0, len(flash_lats))
-flash_mlt = 0
+flash_mlt = 12
 
 dlat = 1.0 # degrees
-dlon = 0.5 # degrees
+dlon = 0.25 # degrees
 max_lon = 20
 max_lat = 20
 
@@ -54,7 +54,7 @@ itime = datetime.datetime(2010,1,1,0,0,0)
 
 
 # Where to save 'em
-out_base ='/shared/users/asousa/WIPP/WIPP_stencils/outputs/input_energies_0.5deg'
+out_base ='/shared/users/asousa/WIPP/WIPP_stencils/outputs/input_energies_0.25deg'
 
 xf = xflib.xflib(lib_path='/shared/users/asousa/WIPP/3dWIPP/python/libxformd.so')
 

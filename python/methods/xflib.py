@@ -29,7 +29,9 @@ class xflib(object):
 
         self.s2c_l    = self.xf.pol_to_cart_d_
         self.c2s_l    = self.xf.cart_to_pol_d_
-    
+        
+        self.gse2sm_l = self.xf.gse_to_sm_d_
+        self.sm2gse_l = self.xf.sm_to_gse_d_
     
     def s2c(self, x_in):
         ''' spherical to cartesian (degrees)
@@ -141,6 +143,11 @@ class xflib(object):
 
         return [x for x in cx_out]
 
+    def rllgeo2rllmag(self, x_in, time_in):
+        ''' Geographic (r, lat, lon) to Geomagnetic (r, lat, lon) '''
+        xtmp = self.s2c(x_in)
+        xtmp = self.geo2mag(xtmp, time_in)
+        return self.c2s(xtmp)
 
     def rllgeo2sm(self, x_in, time_in):
         ''' geographic (radius, lat, lon) to Solar Magnetic (cartesian) '''
@@ -195,6 +202,70 @@ class xflib(object):
         d_out = np.dot(M, d_in)
 
         return d_out
+
+
+    def gse2sm(self, x_in, time_in):
+        yearday = int(1000*time_in.year + time_in.timetuple().tm_yday)
+        milliseconds_day = int((time_in.second + time_in.minute*60 + time_in.hour*60*60)*1e3 + time_in.microsecond*1e-3)
+
+        ct_in = self.i2()
+        
+        ct_in[0] = yearday
+        ct_in[1] = milliseconds_day
+        
+        cx_in = self.d3(*x_in)
+        cx_out = self.d3()
+        self.gse2sm_l(ct_in, cx_in, cx_out)
+
+        return [x for x in cx_out]
+
+    def sm2gse(self, x_in, time_in):
+        yearday = int(1000*time_in.year + time_in.timetuple().tm_yday)
+        milliseconds_day = int((time_in.second + time_in.minute*60 + time_in.hour*60*60)*1e3 + time_in.microsecond*1e-3)
+
+        ct_in = self.i2()
+        
+        ct_in[0] = yearday
+        ct_in[1] = milliseconds_day
+        
+        cx_in = self.d3(*x_in)
+        cx_out = self.d3()
+        self.sm2gse_l(ct_in, cx_in, cx_out)
+
+        return [x for x in cx_out]
+
+        
+    def lon2MLT(self, itime, lon):
+        # // Input: itime, lon in geomagnetic dipole coords.
+        # // Output: MLT in fractional hours
+        # // Ref: "Magnetic Coordinate Systems", Laundal and Richmond
+        # // Space Science Review 2016, DOI 10.1007/s11214-016-0275-y
+
+        ut_hr = itime.hour + itime.minute/60 # /1000.0/60.0;  #// Milliseconds to fractional hours (UT)
+        A1 = [1, 51.48, 0];         #// Location of Greenwich (for UT reference) 
+        B1 = [0, 0, 0]; # B1[3]                         // Location of Greenwich in geomag
+
+        self.s2c(A1);
+        self.geo2mag(A1, itime);
+        self.c2s(A1);
+
+        return np.mod(ut_hr + (lon - A1[2])/15.0,  24);
+
+    def MLT2lon(self, itime, mlt):
+        # // Input: itime, mlt in fractional hours
+        # // Output: longitude in geomagnetic coordinates
+        # // Ref: "Magnetic Coordinate Systems", Laundal and Richmond
+        # // Space Science Review 2016, DOI 10.1007/s11214-016-0275-y
+
+        ut_hr = itime.hour + itime.minute/60 # /1000.0/60.0;  #// Milliseconds to fractional hours (UT)
+        A1 = [1, 51.48, 0];         #// Location of Greenwich (for UT reference) 
+        B1 = [0, 0, 0]; # B1[3]                         // Location of Greenwich in geomag
+
+        self.s2c(A1);
+        self.geo2mag(A1, itime);
+        self.c2s(A1);
+        
+        return 15.*(mlt - ut_hr) + A1[2]
 
 # xf = xflib(lib_path='/shared/users/asousa/WIPP/3dWIPP/python/libxformd.so')
 

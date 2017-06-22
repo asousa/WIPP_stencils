@@ -56,7 +56,7 @@ freq_pairs = zip(freqs[0:], freqs[1:])
 
 # freq_pairs = freq_pairs[0:1]
 Llims = [1.2,7]
-Lstep = 0.1
+Lstep = 0.2
 out_Lsh = np.arange(Llims[0], Llims[1], Lstep)
 out_lat = np.round(10.0*np.arccos(np.sqrt(1./out_Lsh))*R2D)/10.0
 
@@ -66,21 +66,21 @@ offset_lon_spacing = 1 # Spacing between longitudes
 
 dlat_fieldline = 1 #0.25 #1     # degree spacing between EA segments
 model_number = 0        # b-field model (0 = dipole, 1 = IGRF)
-num_freq_steps = 20      # number of interpolating steps between 
+num_freq_steps = 30      # number of interpolating steps between 
                         # each guide frequency.
                         # 0 does 1hz increments.
 damp_threshold = 0.1 # Value below which we ignore crossings
 
-# Kpvec = ['ngo_v2']
-Kpvec = ['kp0']
+Kpvec = ['kp0','kp2','kp4','kp6','kp8']
+# Kpvec = ['kp0']
 
-nightday = 'nightside'
+nightday = 'dayside'
 
 
 ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/mode6/'%nightday
 # ray_input_directory_root = '/shared/users/asousa/WIPP/rays/2d/%s/'%nightday
 
-output_directory_root    = os.path.join(project_root, "outputs", "crossings_20f", nightday)
+output_directory_root    = os.path.join(project_root, "outputs", "crossings_30f_0.2l", nightday)
 
 # ----------------------------------------------------------
 
@@ -158,45 +158,38 @@ if (rank < len(chunks)):
         Kp = job[2]
 
         ray_dir = os.path.join(ray_input_directory_root, Kp)
-
-        # if 'ngo' in Kp:
-        #     ray_dir = os.path.join(ray_input_directory_root, Kp)
-        # else:
-        #     ray_dir = os.path.join(ray_input_directory_root,'kp%d'%Kp)
+        output_directory = os.path.join(output_directory_root, Kp)
+        python_dump_path = os.path.join(output_directory,'python_data')
+        outfile = os.path.join(python_dump_path,'crossing_log_lat_%d-%d_f_%d-%d.pklz'%(ray_lat_1, ray_lat_2, f1, f2))    
 
         if nightday == "nightside":
             center_lon = 0.
         else:
             center_lon = 180.
 
-        data = find_crossings(ray_dir=ray_dir,
-                                tmax =tmax,
-                                dt = dt,
-                                lat_low = ray_lat_1,
-                                lat_step_size = ray_lat_spacing,
-                                f_low=f1, f_hi = f2,
-                                Llims = Llims,
-                                L_step = Lstep,
-                                center_lon = center_lon,
-                                lon_spacing = offset_lon_spacing,
-                                dlat_fieldline = dlat_fieldline,
-                                DAMP_THRESHOLD = damp_threshold,
-                                n_sub_freqs = num_freq_steps
-                                )
+        if not os.path.exists(outfile):
 
-        output_directory = os.path.join(output_directory_root, Kp)    
+            data = find_crossings(ray_dir=ray_dir,
+                                    tmax =tmax,
+                                    dt = dt,
+                                    lat_low = ray_lat_1,
+                                    lat_step_size = ray_lat_spacing,
+                                    f_low=f1, f_hi = f2,
+                                    Llims = Llims,
+                                    L_step = Lstep,
+                                    center_lon = center_lon,
+                                    lon_spacing = offset_lon_spacing,
+                                    dlat_fieldline = dlat_fieldline,
+                                    DAMP_THRESHOLD = damp_threshold,
+                                    n_sub_freqs = num_freq_steps
+                                    )
 
-        # if 'ngo' in Kp:
-        #     output_directory = os.path.join(output_directory_root, Kp)    
-        # else:
-        #     output_directory = os.path.join(output_directory_root, 'kp%d'%Kp)
-        # output_directory = os.path.join(output_directory_root, 'kp%d'%Kp)
-        python_dump_path = os.path.join(output_directory,'python_data')
-
-        outfile = os.path.join(python_dump_path,'crossing_log_lat_%d-%d_f_%d-%d.pklz'%(ray_lat_1, ray_lat_2, f1, f2))
-        with gzip.open(outfile,'wb') as file:
-            pickle.dump(data, file)
-        
+            with gzip.open(outfile,'wb') as file:
+                pickle.dump(data, file)
+            
+        else:
+            print outfile, "already completed"
+            
         print "Process %d on host %s, finished %d/%d"%(rank, host, job_ind+1, len(chunks[rank]))
 
     print "Process %d on host %s complete"%(rank, host)

@@ -300,7 +300,7 @@ double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, doub
       row =i;
       break;
     }
-    // row = n_JL;  // hit maximum
+    row = n_JL - 1;  // hit maximum
   }
 
   // find col:
@@ -309,7 +309,7 @@ double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, doub
       col =i;
       break;
     }
-    // col = n_JE; // Hit maximum
+    col = n_JE - 1; // Hit maximum
   }
 
   // cout << "row = " << row << ", col = " << col << endl;
@@ -356,12 +356,12 @@ double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, doub
   } 
 
   // Case 2. E > E[n_JE]; extrapolate up
-  if (col >= n_JE) {
-
+  if (col >= (n_JE - 1)) {
+    // cout << "E: " << E << " ";
     // cout << "case 2" << endl;
     // cout << "col: " << col << endl;
     // If flux at 7 Mev = 0, flux above it is zero too
-    if( (*J)[row][n_JE]==0)  return 0;
+    if( (*J)[row][n_JE-1]==0)  { return 0; }
 
     // Otherwise need to extrapolate as in case 1.
     // diff flux @ 6.5 MeV and 7 MeV
@@ -396,7 +396,7 @@ double  getJdiff(double *Jp, int n_JL, int n_JE, double E, double alpha_lc, doub
     // cout << " y_ext: " << y_ext;
     // cout << " J_ext: " << J_ext << endl;
 
-
+    // cout << "Normal case: " << J_ext/I << endl;
     return (J_ext/I);
   }
 

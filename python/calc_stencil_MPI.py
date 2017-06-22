@@ -7,6 +7,7 @@ import gzip
 from scipy import interpolate
 import matplotlib.pyplot as plt
 import os
+import sys
 import itertools
 import random
 import os
@@ -108,9 +109,9 @@ def calc_stencil_MPI(crossing_dir=None,
     # Parameters
     Emin = 1.0e1 # 1ev
     Emax = 1.0e8 # 10Mev
-    NUM_E = 512
+    NUM_E = 256 #512
     SCATTERING_RES_MODES = 5
-    E_BANDWIDTH = 10 #0.3
+    E_BANDWIDTH = 0.3
 
     # Constants
     Hz2Rad = 2.*np.pi
@@ -286,6 +287,7 @@ def calc_stencil_MPI(crossing_dir=None,
     if rank == 0:   
         print "nProcs: ", nProcs
         print "nJobs: ", len(jobs)
+        print "flash lat: ", flash_lat
 
         # Initialize output space
         da_N = np.zeros(buffer_dims[1:])
@@ -416,17 +418,22 @@ def calc_stencil_MPI(crossing_dir=None,
         outdict['params'] = pyparams
 
         with gzip.open(outfile,'wb') as file:
-            pickle.dump(outdict,file)
+            pickle.dump(outdict,file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
         # --------------------------------------------
         # Flux calculation
         # --------------------------------------------
         flux_root = '/shared/users/asousa/WIPP/WIPP_stencils/data/'
+        modes_to_do = [('AE8MAX', 0),
+                       ('AE8MIN', 0),
+                       ('AE8MAX', 1),
+                       ('AE8MAX', 2)]
 
-        for fluxfile_prefix in ['AE8MIN','AE8MAX']:
-            fluxfile = os.path.join(flux_root,'%s_integral_flux.dat'%fluxfile_prefix)
+        for (fluxfile_prefix, flux_dist) in modes_to_do:
+            fluxfile = os.path.join(flux_root,'%s_integral_flux_64_energies_8.dat'%fluxfile_prefix)
             print "Starting flux calculation"
+            print "prefix = ", fluxfile_prefix, "flux dist = ", flux_dist
             Jdata = np.loadtxt(fluxfile)
 
             JL = Jdata[1:,0]  # L-shells in J-file
@@ -465,7 +472,7 @@ def calc_stencil_MPI(crossing_dir=None,
                     calc_flux_c(da_S[L_ind, lon_ind, :, :], f_params, Jdata, L, phi_S[L_ind, lon_ind, :, :])
 
             print "saving reduced phi file..."
-            outfile = os.path.join(out_dir,'phi_inlat_%d_%s.pklz'%(flash_lat, fluxfile_prefix))
+            outfile = os.path.join(out_dir,'phi_inlat_%d_%s_flux_%d.pklz'%(flash_lat, fluxfile_prefix, flux_dist))
             outdict = dict()
             # Summed over time:
             outdict['phi_N_sum'] = np.sum(phi_N, axis=-1)
@@ -478,7 +485,7 @@ def calc_stencil_MPI(crossing_dir=None,
 
 
             with gzip.open(outfile,'wb') as file:
-                pickle.dump(outdict,file)
+                pickle.dump(outdict,file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 
@@ -486,28 +493,31 @@ if __name__ == "__main__":
 
     rootdir ='/shared/users/asousa/WIPP/WIPP_stencils/'
     # crossing_dir = os.path.join(rootdir,'outputs','crossings9_quick','nightside','ngo_v2','python_data')
-    crossing_dir = os.path.join(rootdir,'outputs','crossings_20f','nightside','ngo_v2','python_data')
+    # crossing_dir = os.path.join(rootdir,'outputs','crossings_20f','nightside','kp0','python_data')
+    crossing_dir = os.path.join(rootdir,'outputs','crossings_30f_0.2l','nightside','kp0','python_data')
+
+    # crossing_dir = os.path.join(rootdir,'outputs','crossings_ae8min_debug','nightside','ngo_v2','python_data')
     power_dir    = os.path.join(rootdir,'outputs','input_energies')
-    out_dir      = os.path.join(rootdir,'outputs','stencils','nightside','stencil_testing')
+    out_dir      = os.path.join(rootdir,'outputs','stencils','nightside','stencil_30f_0.2L')
 
     # fluxfile = '/shared/users/asousa/WIPP/WIPP_stencils/data/AE8MAX_integral_flux.dat'
     alpha_dist = 0  # 0: Sine / ramp  1: Square
     flux_dist = 0   # 0: fluxfile  1: Suprathermal  2: Flat
 
-    inlats =[20, 30, 40, 50]
-
+    
+    # inlats = [15, 20, 25, 30, 35, 40, 45, 50, 55]
+    inlats = [15, 25, 35, 45, 55]
     for inlat in inlats:
-        print "Doing flash lat at ", inlat, "deg"
         calc_stencil_MPI(
             crossing_dir = crossing_dir,
             power_dir = power_dir,
             out_dir = out_dir,
             # fluxfile = fluxfile,
             alpha_dist = alpha_dist,
-            flux_dist = flux_dist,
+            # flux_dist = flux_dist,
             flash_lat=inlat,
             mlt = 0,
-            max_dist=1000,
+            max_dist=600,
             I0=-10000,
             d_lon = 1,
             num_lons=15,

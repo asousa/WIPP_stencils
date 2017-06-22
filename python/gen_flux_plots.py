@@ -271,13 +271,16 @@ plt.rcParams.update(params)
 
 
 
-inp_root = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/stencils/nightside/stencil_testing/'
+inp_root = '/shared/users/asousa/WIPP/WIPP_stencils/outputs/stencils/nightside/stencil_3/'
 out_root = os.path.join(inp_root,'figures')
 
 if not (os.path.exists(out_root)):
     os.system('mkdir -p %s'%out_root)
-in_lats = [35]
-in_suffixes = ['AE8MIN', 'AE8MAX']
+in_lats = [25, 35, 45, 55]
+in_suffixes = ['AE8MIN_flux_0', 
+               'AE8MAX_flux_0',
+               'AE8MAX_flux_1',
+               'AE8MAX_flux_2']
 
 
 for inlat in in_lats:
