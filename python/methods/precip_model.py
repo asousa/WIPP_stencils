@@ -15,6 +15,8 @@ import time
 import datetime
 import gzip
 
+from joblib import Parallel, delayed
+import multiprocessing
 
 R2D = 180./np.pi
 D2R = np.pi/180.
@@ -195,6 +197,7 @@ class precip_model(object):
         # self.pc_logscale = None
         # self.pc_bands = None
         
+
     def get_precip_at(self, inkps, inlats, outlats, outlons, logscale = False):
 
         if self.n_bands == 1:
@@ -222,33 +225,55 @@ class precip_model(object):
     #             out_data[np.isinf(out_data)] = -100
             od = out_data
         else:
+            num_cores = multiprocessing.cpu_count()
+
             # More than one energy band
             od = np.zeros([len(inkps), len(inlats), len(outlats), len(outlons), self.n_bands])
-            for b in range(self.n_bands):
-                print "band",b
-                tw, tx, ty, tz, ta  = np.meshgrid(inkps, inlats, outlats, outlons, b, indexing='ij')
-                keys =  np.array([np.abs(tw.ravel()), np.abs(tx.ravel()),np.abs(ty.ravel()), np.abs(tz.ravel()), ta.ravel()]).T
+
+            # for b in range(self.n_bands):
+        #     def per_band(b):
+        #         print "band",b
+        #         tw, tx, ty, tz, ta  = np.meshgrid(inkps, inlats, outlats, outlons, b, indexing='ij')
+        #         keys =  np.array([np.abs(tw.ravel()), np.abs(tx.ravel()),np.abs(ty.ravel()), np.abs(tz.ravel()), ta.ravel()]).T
                 
-                # Model is symmetric around northern / southern hemispheres (mag. dipole coordinates):
-                # If in = N, out = N  --> Northern hemisphere
-                #    in = N, out = S  --> Southern hemisphere
-                #    in = S, out = N  --> Southern hemisphere
-                #    in = S, out = S  --> Northern hemisphere
-                use_southern_hemi = np.array(((tx > 0) ^ (ty > 0)).ravel())
-                keys_N = keys[~use_southern_hemi,:]
-                keys_S = keys[ use_southern_hemi,:]
+        #         # Model is symmetric around northern / southern hemispheres (mag. dipole coordinates):
+        #         # If in = N, out = N  --> Northern hemisphere
+        #         #    in = N, out = S  --> Southern hemisphere
+        #         #    in = S, out = N  --> Southern hemisphere
+        #         #    in = S, out = S  --> Northern hemisphere
+        #         use_southern_hemi = np.array(((tx > 0) ^ (ty > 0)).ravel())
+        #         keys_N = keys[~use_southern_hemi,:]
+        #         keys_S = keys[ use_southern_hemi,:]
 
-                out_data = np.zeros(len(keys))
+        #         out_data = np.zeros(len(keys))
 
-                out_data[ use_southern_hemi] = self.S_interp(keys_S)
-                out_data[~use_southern_hemi] = self.N_interp(keys_N)
-        #         return out_data.reshape(len(inkps), len(inlats), len(outlats),  len(outlons))
-                out_data = out_data.reshape(len(inkps), len(inlats), len(outlats),  len(outlons))
-                if logscale:
-                    out_data = np.log10(out_data)
-        #             out_data[np.isinf(out_data)] = -100
-                od[:,:,:,:,b] = out_data
+        #         out_data[ use_southern_hemi] = self.S_interp(keys_S)
+        #         out_data[~use_southern_hemi] = self.N_interp(keys_N)
+        # #         return out_data.reshape(len(inkps), len(inlats), len(outlats),  len(outlons))
+        #         out_data = out_data.reshape(len(inkps), len(inlats), len(outlats),  len(outlons))
+        #         if logscale:
+        #             out_data = np.log10(out_data)
+        # #             out_data[np.isinf(out_data)] = -100
+        #         # od[:,:,:,:,b] = out_data
+        #         return out_data
 
+            # print "n_bands:", self.n_bands
+            # print "num cores:", num_cores
+            band_inds = range(self.n_bands)
+            jo = Parallel(n_jobs=num_cores)(delayed(per_band)(self, inkps, inlats, outlats, outlons, logscale, b)
+                         for b in band_inds)
+            # print "jo is:", np.shape(jo)
+            
+            # Shuffle indexes -- we've paralleled along the energy axis (last axis),
+            # but the data is returned from the workers along the first axis            
+            for b in range(self.n_bands):
+                od[:,:,:,:,b] = jo[b]
+            # od = np.array(jo).swapaxes(0,-1)
+            # print "od is:", np.shape(od)
+            # print "inkps:", np.shape(inkps)
+            # print "inlats:", np.shape(inlats)
+            # print "outlats:", np.shape(outlats)
+            # print "outlons:", np.shape(outlons)
         return od
     
     def precalculate(self, inkps, inlats, outlats, outlons, logscale):
@@ -261,7 +286,34 @@ class precip_model(object):
 
 
 
+def per_band(obj,inkps, inlats, outlats, outlons, logscale, b):
+    # Per-band helper for get_precip_at().
+    # When using the easy parallel library, we can't call methods belonging
+    # to an explicit object. I'm sure some CS dude is cursing me for this.
+        print "band",b
+        tw, tx, ty, tz, ta  = np.meshgrid(inkps, inlats, outlats, outlons, b, indexing='ij')
+        keys =  np.array([np.abs(tw.ravel()), np.abs(tx.ravel()),np.abs(ty.ravel()), np.abs(tz.ravel()), ta.ravel()]).T
+        
+        # Model is symmetric around northern / southern hemispheres (mag. dipole coordinates):
+        # If in = N, out = N  --> Northern hemisphere
+        #    in = N, out = S  --> Southern hemisphere
+        #    in = S, out = N  --> Southern hemisphere
+        #    in = S, out = S  --> Northern hemisphere
+        use_southern_hemi = np.array(((tx > 0) ^ (ty > 0)).ravel())
+        keys_N = keys[~use_southern_hemi,:]
+        keys_S = keys[ use_southern_hemi,:]
 
+        out_data = np.zeros(len(keys))
+
+        out_data[ use_southern_hemi] = obj.S_interp(keys_S)
+        out_data[~use_southern_hemi] = obj.N_interp(keys_N)
+#         return out_data.reshape(len(inkps), len(inlats), len(outlats),  len(outlons))
+        out_data = out_data.reshape(len(inkps), len(inlats), len(outlats),  len(outlons))
+        if logscale:
+            out_data = np.log10(out_data)
+#             out_data[np.isinf(out_data)] = -100
+        # od[:,:,:,:,b] = out_data
+        return out_data
 
 if __name__=='__main__':
 

@@ -56,7 +56,7 @@ def matlabdn2datetime(datenum):
 
 
 
-def load_Kp(file = '/shared/users/asousa/WIPP/3dWIPP/data/Kp_1999_2016.dat'):
+def load_Kp(file = '/shared/users/asousa/WIPP/3dWIPP/data/Kp_1999_2017.dat'):
 
     # Kp files are ascii with a per-character format that doesn't split up easily
     if os.path.exists(file):
@@ -71,7 +71,7 @@ def load_Kp(file = '/shared/users/asousa/WIPP/3dWIPP/data/Kp_1999_2016.dat'):
                 mo = int(line[2:4])
                 dy = int(line[4:6])
                 
-                if 17 <= yr <= 99:
+                if 18 <= yr <= 99:
                     yr += 1900
                 else:
                     yr += 2000
