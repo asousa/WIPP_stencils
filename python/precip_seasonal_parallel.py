@@ -46,8 +46,9 @@ import math
 # Worker process:
 def job(tlist):
 #     print "loading %d/%d"%(f_ind, total_files)
-    print "doing day ", tlist[0].date()
+    logging.info("doing day ", tlist[0].date())
     pwr_map = np.zeros([len(gridlons), len(gridlats), n_bands])
+
     
     cur_map_total = np.zeros([180, 360])
     for filetime in tlist:
@@ -154,7 +155,9 @@ def job(tlist):
 
 if __name__ == '__main__':
 
-
+    logging.basicConfig(level=logging.DEBUG,
+                      format='[%(levelname)s] %(message)s',
+                      )  
 
     # ------------- Settings ----------------
     # suffix = 'AE8MAX_flux_0'
@@ -185,7 +188,7 @@ if __name__ == '__main__':
     xf = xflib(lib_path='/shared/users/asousa/WIPP/WIPP_stencils/python/methods/libxformd.so')
 
     num_cores = multiprocessing.cpu_count()
-    print "Num cores: ", num_cores
+    logging.info("Num cores: ", num_cores)
     
     R_E = 6371. # Km
     R2D = 180./np.pi
@@ -198,7 +201,7 @@ if __name__ == '__main__':
     d = os.listdir(data_path)
 
     # Load Kpmax ---
-    print "loading Kp"
+    logging.info("loading Kp")
     Ktimes, Kp_arr = load_Kp()
     Ktimes = [k + datetime.timedelta(minutes=90) for k in Ktimes]  # 3-hour bins; the original script labeled them in the middle of the bin
     Ktimes = np.array(Ktimes)
@@ -221,7 +224,7 @@ if __name__ == '__main__':
             daydict[t.date()] = []
         daydict[t.date()].append(t)
 
-    print "Doing %d days"%len(daydict.keys())
+    logging.info("Doing %d days"%len(daydict.keys()))
     stencil_lats = np.hstack([np.arange(-80, -19,dlat),(np.arange(20,80 + dlat,dlat))])
     stencil_lons = np.linspace(-14, 14, 14*2/dlon + 1)
 
@@ -236,7 +239,7 @@ if __name__ == '__main__':
 
     fn = os.path.join(db_path,'nightside_%s_%db.pkl'%(suffix, n_bands))
     if os.path.exists(fn):
-        print "Interpolating nightside"
+        logging.info("Interpolating nightside")
 
         with open(fn,'rb') as file:
             db = pickle.load(file)
@@ -244,7 +247,7 @@ if __name__ == '__main__':
             p_night = precip_model(db, mode=mode)
             p_night.precalculate(unique_kp, inlats, stencil_lats, stencil_lons, logscale=logscale)
     else:
-        print "Cannot find nightside dictionary"
+        logging.info("Cannot find nightside dictionary")
 
     fn = os.path.join(db_path,'dayside_%s_%db.pkl'%(suffix, n_bands))
     if os.path.exists(fn):
@@ -254,12 +257,12 @@ if __name__ == '__main__':
             p_day = precip_model(db, mode=mode)
             p_day.precalculate(unique_kp, inlats, stencil_lats, stencil_lons, logscale=logscale)
     else:
-        print "cannot find dayside dictionary"
+        logging.info("cannot find dayside dictionary")
     # Move the precalculated stencils from an ndarray to a dictionary --
     # key ~ [kp, inlat], data ~ [outlats, outlons, bands]
     precalc_stencils = dict()
 
-    print "doing the dictionary thing"
+    logging.info("doing the dictionary thing")
     for kp_ind, kp in enumerate(unique_kp):
         for inlat_ind, inlat in enumerate(inlats):
 
@@ -269,7 +272,7 @@ if __name__ == '__main__':
             key = (int(np.round(10.*kp)), inlat, 12)
             precalc_stencils[key] = p_day.precalculated['data'][kp_ind, inlat_ind, :,:].squeeze()
 
-    print "precalc dict has %d keys"%len(precalc_stencils.keys())
+    logging.info("precalc dict has %d keys"%len(precalc_stencils.keys()))
     # ----------------------------------------
     # ---------- Output space ----------------
     # ----------------------------------------
@@ -287,6 +290,6 @@ if __name__ == '__main__':
     # ----------------------------------------
 
     # Parallel jobs (single machine, multiple core)
-    print "--- the main event ---"
+    logging.info("--- the main event ---")
     ret = Parallel(n_jobs=num_cores)(delayed(job)(tlist) for tlist in daydict.values())
 

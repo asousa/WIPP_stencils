@@ -14,7 +14,7 @@ import os
 import time
 import datetime
 import gzip
-
+import logging
 from joblib import Parallel, delayed
 import multiprocessing
 
@@ -277,7 +277,12 @@ class precip_model(object):
         return od
     
     def precalculate(self, inkps, inlats, outlats, outlons, logscale):
-        self.precalculated['data'] = self.get_precip_at(inkps, inlats, outlats, outlons, logscale=logscale)
+
+        # Normalize vs Io -- model scales linearly with power (~quadratically w/ Io)
+        # IF YOU RE-RUN THE STENCILS, CHANGE THIS (or pass it in data['params'], jfc)
+        stencil_Io = pow(-10000.,2)
+        self.precalculated['data'] = self.get_precip_at(inkps, inlats, outlats, 
+                                    outlons, logscale=logscale)/stencil_Io
         self.precalculated['inlats'] = inlats
         self.precalculated['kps'] = inkps
         self.precalculated['outlats'] = outlats
@@ -290,7 +295,8 @@ def per_band(obj,inkps, inlats, outlats, outlons, logscale, b):
     # Per-band helper for get_precip_at().
     # When using the easy parallel library, we can't call methods belonging
     # to an explicit object. I'm sure some CS dude is cursing me for this.
-        print "band",b
+        logger = logging.getLogger()
+        logger.info("band %d"%b)
         tw, tx, ty, tz, ta  = np.meshgrid(inkps, inlats, outlats, outlons, b, indexing='ij')
         keys =  np.array([np.abs(tw.ravel()), np.abs(tx.ravel()),np.abs(ty.ravel()), np.abs(tz.ravel()), ta.ravel()]).T
         
